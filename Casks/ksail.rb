@@ -3,7 +3,7 @@ cask "ksail" do
   name "ksail"
   desc ""
   homepage ""
-  version "5.57.2"
+  version "5.58.0"
 
   livecheck do
     skip "Auto-generated on release."
@@ -14,18 +14,18 @@ cask "ksail" do
   on_macos do
     on_arm do
       url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/ksail_#{version}_darwin_arm64.tar.gz"
-      sha256 "a2da72e5c9e009c4fcb9e310602c41abfb3903b79a7990b7a8c4a0b588675746"
+      sha256 "295c5589d89e35b11d1955266951cc837ac8bb63f63260cba5450ed3b142e1f6"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/ksail_#{version}_linux_amd64.tar.gz"
-      sha256 "437d8b935679d212bbf73cbb93a9bb2d433b758970a25152d968f17184a20eb9"
+      sha256 "77614a84cd90621b52413fedcc8437f969973e935d49a69f8c10828d9f743216"
     end
     on_arm do
       url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/ksail_#{version}_linux_arm64.tar.gz"
-      sha256 "0e57f13fb8aee3ea7bd693e215112257df366f05e1c2d1055635f27ffba05e41"
+      sha256 "77baac076cf3f2f6601ef70538b46a8d571b0d3a06f4847fb5449a0b138ce8a1"
     end
   end
 

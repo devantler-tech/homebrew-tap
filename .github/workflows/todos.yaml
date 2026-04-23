@@ -8,6 +8,6 @@ on:
 
 jobs:
   todos:
-    uses: devantler-tech/reusable-workflows/.github/workflows/scan-for-todo-comments.yaml@c38023c534dd7c47e32d41b28a2ce6102359d9de # v3.0.2
+    uses: devantler-tech/reusable-workflows/.github/workflows/scan-for-todo-comments.yaml@ff91572c5ffafe2df96a0ff8e3c4ea323ca8c52d # v3.1.0
     secrets:
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}

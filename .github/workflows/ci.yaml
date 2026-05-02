@@ -13,7 +13,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: ✅ Require checks in PR
-        uses: devantler-tech/actions/require-checks-in-pr@59d3ffbe1a9437fcc39e2794fa2f221abe878310 # v3.3.0
+      - name: ✅ Aggregate job checks
+        uses: devantler-tech/actions/aggregate-job-checks@59d3ffbe1a9437fcc39e2794fa2f221abe878310 # v3.3.0
         with:
           job-results: ""

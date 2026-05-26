@@ -1,5 +1,6 @@
 name: "TODOs"
 permissions:
+  contents: read
   issues: write
 on:
   workflow_dispatch:

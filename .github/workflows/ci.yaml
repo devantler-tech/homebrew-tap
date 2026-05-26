@@ -14,6 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: ✅ Aggregate job checks
-        uses: devantler-tech/actions/aggregate-job-checks@59d3ffbe1a9437fcc39e2794fa2f221abe878310 # v3.3.0
+        uses: devantler-tech/actions/aggregate-job-checks@10429850e4620adb409e568bab16ba1bbe36a4b5 # v3.4.0
         with:
           job-results: ""

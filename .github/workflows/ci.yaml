@@ -29,6 +29,13 @@ jobs:
         # audit each Cask by `<tap>/<name>`. `--online` resolves url + sha256 and
         # the verified-domain rule; `--strict` turns style/quality warnings into
         # failures. Auditing every Cask means adding a third "just works".
+        env:
+          # `--online` hits the GitHub API to resolve release assets; without a
+          # token brew uses the unauthenticated limit (60/hr per runner IP, shared
+          # across all Actions runners on that IP) and intermittently fails with
+          # "API rate limit exceeded", flakily blocking every PR. The job token
+          # raises this to 5,000/hr. Read-only; matches the `contents: read` scope.
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tap_dir="$(brew --repository)/Library/Taps/devantler-tech/homebrew-tap"

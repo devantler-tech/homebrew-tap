@@ -4,8 +4,8 @@ The [Homebrew](https://brew.sh) tap for [devantler-tech](https://github.com/deva
 
 | Cask | Description |
 | ---- | ----------- |
-| [ksail](https://github.com/devantler-tech/ksail) | CLI tool to manage Kubernetes clusters and workloads. |
-| [ksail-desktop](https://github.com/devantler-tech/ksail) | Desktop app to manage local Kubernetes clusters in a native window. |
+| [ksail](https://github.com/devantler-tech/ksail) | KSail is a CLI tool to manage clusters and workloads. |
+| [ksail-desktop](https://github.com/devantler-tech/ksail) | KSail desktop app — manage local Kubernetes clusters in a native window. |
 
 ## How do I install these Casks?
 

@@ -8,12 +8,49 @@ on:
 permissions: {}
 
 jobs:
+  audit-casks:
+    name: 🔍 Audit Casks
+    # macOS has Homebrew preinstalled; Casks run on macOS so audit them there.
+    runs-on: macos-latest
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: 🔒 Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit # brew audit --online fetches the release assets
+      - name: 📥 Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false # read-only job; never pushes
+      - name: 🔍 brew audit --strict --online (every Cask)
+        # `brew audit` only accepts a Cask *name* (the path form is disabled), so
+        # expose this checkout to Homebrew as the real tap via a symlink, then
+        # audit each Cask by `<tap>/<name>`. `--online` resolves url + sha256 and
+        # the verified-domain rule; `--strict` turns style/quality warnings into
+        # failures. Auditing every Cask means adding a third "just works".
+        run: |
+          set -euo pipefail
+          tap_dir="$(brew --repository)/Library/Taps/devantler-tech/homebrew-tap"
+          mkdir -p "$(dirname "$tap_dir")"
+          ln -sfn "$GITHUB_WORKSPACE" "$tap_dir"
+          status=0
+          for cask in Casks/*.rb; do
+            name="$(basename "$cask" .rb)"
+            echo "::group::brew audit $name"
+            brew audit --strict --online --cask "devantler-tech/tap/$name" || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
   required-checks:
     name: CI - Required Checks
     if: always()
     runs-on: ubuntu-latest
+    needs: [audit-casks]
+    permissions: {}
     steps:
       - name: ✅ Aggregate job checks
         uses: devantler-tech/actions/aggregate-job-checks@6916c45ed8dc22e62cb12f021480e29732d03575 # v5.1.0
         with:
-          job-results: ""
+          job-results: ${{ needs.audit-casks.result }}

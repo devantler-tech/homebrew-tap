@@ -9,7 +9,7 @@
 - `Casks/ksail.rb` — Cask for the `ksail` CLI binary (macOS arm64, Linux amd64/arm64). GoReleaser-generated (`# DO NOT EDIT`).
 - `Casks/ksail-desktop.rb` — Cask for the `KSail.app` desktop app (macOS arm64). GoReleaser-generated (`# DO NOT EDIT`).
 - `README.md` — tap landing page: a Cask/Description table and install instructions.
-- `.github/workflows/ci.yaml` — required-checks aggregator run on `pull_request` and `merge_group` (`devantler-tech/actions/aggregate-job-checks`).
+- `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
 - `.github/workflows/sync-labels.yaml` — weekly + on-demand GitHub label sync.
 - `.github/workflows/todos.yaml` — scans pushed-to-`main` commits for TODO comments and files issues.
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.
@@ -18,7 +18,7 @@ Each Cask carries `version`, per-platform `sha256` + `url` pointing at the corre
 
 ## Validation
 
-CI here runs only the aggregate required-checks job — it does **not** run `brew style`/`brew audit`. So validate locally before any PR:
+CI runs `brew audit --strict --online` on every Cask and blocks merge on failure. It does **not** yet run `brew style` — the GoReleaser-generated Casks (`# DO NOT EDIT`) currently trip ~20 RuboCop style offenses (stanza order, `depends_on :macos`, modifier-`if`, blank lines) that can only be fixed in the upstream GoReleaser cask template, so a style gate would block every PR until that lands. Until then, still validate `brew style` locally:
 
 - If `brew` is available: `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>`.
 - Otherwise: `ruby -c Casks/<cask>.rb` for a syntax check, plus a careful manual read.
@@ -31,7 +31,7 @@ These conventions guide the autonomous **Daily AI Assistant** — and any agenti
 
 **Releases bump Casks automatically.** A tool release (e.g. ksail) opens its own PR to update a Cask's `url`/`version`/`sha256`. **Do NOT hand-edit version/sha to chase a release** — you'd race the automation and risk a wrong sha. Your job is Cask *correctness/hygiene*, not version bumps.
 
-**Recommended local validation before any PR:** CI here runs only the aggregate required-checks job and does **not** run `brew style`/`brew audit`, so validate locally first — `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>` if `brew` is available; else `ruby -c Casks/<cask>.rb` + a careful read.
+**Recommended local validation before any PR:** CI runs `brew audit --strict --online` (and blocks on it) but not `brew style` yet, so still validate `brew style` locally first — `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>` if `brew` is available; else `ruby -c Casks/<cask>.rb` + a careful read.
 
 **Task menu** (minimal; usually nothing to do):
 - **Triage** new issues/PRs; one insightful comment on the oldest un-commented item (e.g. an install-failure report → investigate the Cask).

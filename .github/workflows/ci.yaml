@@ -23,6 +23,32 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false # read-only job; never pushes
+      - name: 🧪 Self-test — the gate must reject a broken Cask
+        # Regression guard: prove the audit gate actually blocks, not just that it
+        # runs. Build a deliberately-broken Cask in a throwaway tap and assert
+        # `brew audit` rejects it; if it ever PASSES, the gate has silently stopped
+        # enforcing and we fail the job. Offline (no `--online`) so it is
+        # deterministic and needs no network or token — the broken Cask trips
+        # offline-detectable rules (missing homepage/desc/artifact, bad sha256).
+        run: |
+          set -euo pipefail
+          selftap="$(brew --repository)/Library/Taps/devantler-tech-selftest/homebrew-selftest"
+          mkdir -p "$selftap/Casks"
+          cleanup() { rm -rf "$selftap"; }
+          trap cleanup EXIT
+          cat > "$selftap/Casks/broken-selftest.rb" <<'RUBY'
+          cask "broken-selftest" do
+            version "0.0.0"
+            sha256 "deadbeef"
+            url "https://example.invalid/broken-selftest/nope.zip"
+            name "broken selftest"
+          end
+          RUBY
+          if brew audit --strict --cask "devantler-tech-selftest/selftest/broken-selftest"; then
+            echo "::error::Self-test failed: a deliberately-broken Cask passed audit — the gate is not enforcing."
+            exit 1
+          fi
+          echo "Self-test OK: the broken Cask was correctly rejected by brew audit."
       - name: 🔍 brew audit --strict --online (every Cask)
         # `brew audit` only accepts a Cask *name* (the path form is disabled), so
         # expose this checkout to Homebrew as the real tap via a symlink, then

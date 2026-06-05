@@ -52,4 +52,5 @@ of the rules below.
 - Copilot code review reads `.github/copilot-instructions.md` at **≤4000 chars** and does **not** read
   `AGENTS.md` — keep this file concise and standalone; flag a PR that bloats it past the limit.
 
-When unsure, defer to [`AGENTS.md`](../AGENTS.md) and its `## Maintenance` section.
+This file is self-contained for Copilot review. When a rule here is ambiguous, flag it and request
+human clarification; humans can consult [`AGENTS.md`](../AGENTS.md) and its `## Maintenance` section.

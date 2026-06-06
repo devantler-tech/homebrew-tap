@@ -1,0 +1,79 @@
+---
+name: Re-audit release Casks
+
+# GoReleaser opens a Cask-bump PR (branch `goreleaser/*`) as part of the ksail release, but
+# ~37 min BEFORE the GitHub release assets become downloadable: the release is created as a
+# draft and is only published once every release job has succeeded. So the `Audit Casks` job's
+# `brew audit --online` 404s on the not-yet-public asset and the PR stays red until someone
+# re-runs it by hand — blocking the maintainer's armed auto-merge on every release (#775).
+#
+# This job runs only for those `goreleaser/*` PRs. On cheap Ubuntu it waits (bounded) for the
+# referenced release to publish — `gh release view <tag>` returns nothing while the release is
+# still a draft, so a successful lookup proves the assets are downloadable — then re-runs the
+# failed CI run so the audit passes against the now-live asset and auto-merge fires. No manual
+# intervention, and the audit's strictness is unchanged (see #734 / #773).
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  reaudit-on-publish:
+    name: ⏳ Re-audit once release publishes
+    # Only GoReleaser-generated Cask-bump PRs hit the pre-publish 404 race.
+    if: startsWith(github.head_ref, 'goreleaser/')
+    runs-on: ubuntu-latest
+    # Covers the observed ~37 min draft window plus margin; fails informatively past it.
+    timeout-minutes: 50
+    permissions:
+      contents: read # read the release publish state
+      actions: write # re-run the failed CI run once assets are live
+    steps:
+      - name: 🔒 Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit # waits on the GitHub API for the release to publish
+
+      - name: ⏳ Wait for the release to publish, then re-audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+
+          # The Cask branch is `goreleaser/{project}-{tag}` (project may contain hyphens), so the
+          # release tag is the trailing `vX.Y.Z` of the branch name.
+          tag="$(printf '%s' "$HEAD_REF" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.]+)*$' || true)"
+          if [ -z "$tag" ]; then
+            echo "Branch '$HEAD_REF' has no version suffix; nothing to wait for."
+            exit 0
+          fi
+          echo "Waiting for release $tag to publish before re-auditing its Cask PR."
+
+          # `gh release view <tag>` returns nothing while the release is a draft (drafts are not
+          # resolvable by tag — see ksail cd.yaml publish-release), so a successful lookup proves
+          # the release is published and its assets are publicly downloadable.
+          deadline=$(( SECONDS + 45 * 60 ))
+          until gh release view "$tag" --json isDraft >/dev/null 2>&1; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Timed out after 45m waiting for release $tag to publish; leaving the Cask PR red."
+              exit 1
+            fi
+            sleep 60
+          done
+          echo "Release $tag is published; its assets are downloadable."
+
+          # Re-run the latest CI run for this branch only if that latest run failed (on the
+          # pre-publish 404) — never re-run a branch a later run already turned green.
+          run_id="$(gh run list --workflow ci.yaml --branch "$HEAD_REF" --event pull_request \
+            --json databaseId,conclusion,createdAt \
+            --jq 'sort_by(.createdAt) | last | select(.conclusion == "failure") | .databaseId')"
+          if [ -z "$run_id" ]; then
+            echo "No failed CI run to re-audit (already green?). Done."
+            exit 0
+          fi
+          echo "Re-running failed CI run $run_id so the audit re-evaluates against the live asset."
+          gh run rerun "$run_id" --failed

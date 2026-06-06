@@ -2,7 +2,14 @@
 name: CI
 
 on:
+  # Audit Cask-bump PRs on the draft→ready flip, not at draft-open. GoReleaser opens the release
+  # Cask PRs (`goreleaser/*`) as drafts ~37 min before the GitHub release publishes (it stays a
+  # draft until every release job succeeds), and the ksail `homebrew` job marks them ready only
+  # AFTER publish. So `ready_for_review` here — plus the `audit-casks` draft-skip below — lets
+  # `brew audit --online` resolve a live asset on the first try: no pre-publish 404, no manual
+  # re-audit. Same triggers and draft handling as the org `enable-auto-merge.yaml`.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
 
 permissions: {}
@@ -10,6 +17,10 @@ permissions: {}
 jobs:
   audit-casks:
     name: 🔍 Audit Casks
+    # Skip drafts: a draft release Cask PR's asset is not public yet, so `brew audit --online` would
+    # 404 and wedge the PR red (the failure this removes). It re-runs on `ready_for_review` once the
+    # asset is live — see the trigger comment. `merge_group` and non-draft PRs always audit.
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     # macOS has Homebrew preinstalled; Casks run on macOS so audit them there.
     runs-on: macos-latest
     permissions:

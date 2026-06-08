@@ -3,11 +3,11 @@ cask "ksail-desktop" do
   depends_on macos: :big_sur
   app "KSail.app"
 
-  version "7.41.0"
+  version "7.41.1"
 
   on_macos do
     on_arm do
-      sha256 "744d13f26eb1c0957312935b6f55b0d93c242899fff4de5bc1fe2f600dc59fb2"
+      sha256 "f69123d012e3512df52882824bbfb5f5bc0a92d1344fcb8b921406830e41cac4"
       url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/KSail_#{version}_darwin_arm64.zip",
         verified: "github.com/devantler-tech/ksail/"
     end

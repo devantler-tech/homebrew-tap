@@ -95,6 +95,6 @@ jobs:
     permissions: {}
     steps:
       - name: ✅ Aggregate job checks
-        uses: devantler-tech/actions/aggregate-job-checks@b31ec7baa4d7e9ca5b113f56cc928fe708872431 # v5.4.2
+        uses: devantler-tech/actions/aggregate-job-checks@0e1232924bf8b07a40b1b24e13e200744fbabcfa # v6.0.0
         with:
           job-results: ${{ needs.audit-casks.result }}

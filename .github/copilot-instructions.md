@@ -23,6 +23,8 @@ of the rules below.
 - **Never hand-edit `version`/`url`/`sha256` to chase a release.** Releases open their **own** automated
   Cask-bump PR; a manual bump races that automation and risks a wrong `sha256`. Flag any human PR that
   edits version/url/sha by hand.
+- **Don't hand-close superseded `goreleaser/<cask>-v*` bump PRs.** `close-superseded-cask-bumps.yaml`
+  closes the ones at-or-below `main`'s current version automatically; flag a PR that manually closes them.
 - A genuine Cask-content fix (deprecated DSL, stanza shape) must change the **upstream GoReleaser
   template**, not just this generated file — a here-only edit will be overwritten on next release. Flag
   generated-file edits that aren't mirrored upstream.

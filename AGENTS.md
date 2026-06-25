@@ -12,8 +12,10 @@
 - `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
 - `.github/workflows/sync-labels.yaml` — weekly + on-demand GitHub label sync.
 - `.github/workflows/todos.yaml` — scans pushed-to-`main` commits for TODO comments and files issues.
-- `.github/workflows/close-superseded-cask-bumps.yaml` — closes stale `goreleaser/<cask>-v*` bump PRs whose version is at-or-below the version already on `main` (and deletes their branches), keeping only a genuinely-newer pending bump. Runs after a bump lands on `main`, daily, and on demand.
+- `.github/workflows/close-superseded-cask-bumps.yaml` — closes stale `goreleaser/<cask>-v*` bump PRs whose version is at-or-below the version already on `main` (and deletes their branches), keeping only a genuinely-newer pending bump. Runs after a bump lands on `main`, daily, and on demand. Its close/keep version comparison lives in `scripts/is-superseded.sh`.
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.
+- `scripts/is-superseded.sh` — version-comparison predicate (`<candidate> <current>` → exit 0 = superseded/close, exit 1 = newer/keep) shared by `close-superseded-cask-bumps.yaml`; the single source of truth for the destructive close/keep decision.
+- `test/is-superseded.test.sh` — hermetic regression test for `scripts/is-superseded.sh` (no network/Homebrew); run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.
 
 Each Cask carries `version`, per-platform `sha256` + `url` pointing at the corresponding `devantler-tech/ksail` GitHub release asset, a `livecheck` skipped as auto-generated-on-release, a `binary`/`app` stanza, and a `postflight` that strips the macOS quarantine xattr.
 

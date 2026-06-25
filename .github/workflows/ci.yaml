@@ -87,14 +87,34 @@ jobs:
           done
           exit "$status"
 
+  test-scripts:
+    name: 🧪 Test scripts
+    # Hermetic (no network, no Homebrew) regression test for the version-comparison predicate behind
+    # close-superseded-cask-bumps.yaml's destructive close/keep decision. Runs on Linux on every PR so
+    # a change to scripts/is-superseded.sh is gated here — that workflow only runs on push/schedule.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: 🔒 Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit # the test needs no network; audit matches the repo's other jobs
+      - name: 📥 Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false # read-only job; never pushes
+      - name: 🧪 Run script tests
+        run: bash test/is-superseded.test.sh
+
   required-checks:
     name: CI - Required Checks
     if: always()
     runs-on: ubuntu-latest
-    needs: [audit-casks]
+    needs: [audit-casks, test-scripts]
     permissions: {}
     steps:
       - name: ✅ Aggregate job checks
         uses: devantler-tech/actions/aggregate-job-checks@9d98cb8be059537ec1e82f71c90d75ecba321713 # v6.1.0
         with:
-          job-results: ${{ needs.audit-casks.result }}
+          job-results: ${{ needs.audit-casks.result }} ${{ needs.test-scripts.result }}

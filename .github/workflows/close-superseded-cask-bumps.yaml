@@ -61,9 +61,11 @@ jobs:
               [ -n "$num" ] || continue
               # Quote the prefix so `#` strips it literally (SC2295), not as a glob pattern.
               ver="${branch#"$prefix"}"
-              # Keep a genuinely-newer pending bump; close anything at-or-below main (sort -V: if the
-              # max of {ver,current} is current, then ver <= current → superseded/redundant).
-              if [ "$(printf '%s\n%s\n' "$ver" "$current" | sort -V | tail -1)" = "$current" ]; then
+              # Keep a genuinely-newer pending bump; close anything at-or-below main. The version
+              # comparison lives in scripts/is-superseded.sh (exit 0 = superseded → close) so the
+              # destructive close/keep decision has a single, test-covered source of truth
+              # (test/is-superseded.test.sh).
+              if bash "$GITHUB_WORKSPACE/scripts/is-superseded.sh" "$ver" "$current"; then
                 echo "Closing #$num ($branch) — superseded by v$current on main"
                 # Build the body with printf so no YAML indentation leaks into the markdown.
                 body="$(printf '%s\n\n%s\n' \

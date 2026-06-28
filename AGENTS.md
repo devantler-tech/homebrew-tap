@@ -21,7 +21,7 @@ Each Cask carries `version`, per-platform `sha256` + `url` pointing at the corre
 
 ## Validation
 
-CI runs `brew audit --strict --online` on every Cask and blocks merge on failure. It does **not** yet run `brew style` — the GoReleaser-generated Casks (`# DO NOT EDIT`) currently trip ~20 RuboCop style offenses (stanza order, `depends_on :macos`, modifier-`if`, blank lines) that can only be fixed in the upstream GoReleaser cask template, so a style gate would block every PR until that lands. Until then, still validate `brew style` locally:
+CI runs `brew audit --strict --online` on every Cask and blocks merge on failure. It does **not** yet run `brew style` — the GoReleaser-generated Casks (`# DO NOT EDIT`) currently trip 14 RuboCop style offenses (all auto-correctable: `Cask/StanzaOrder` ×7, `Layout/ArgumentAlignment` ×4, `Layout/EmptyLinesAroundBlockBody` ×2, `Cask/StanzaGrouping` ×1) rooted in the upstream GoReleaser cask template (tracked upstream in [goreleaser/goreleaser#6678](https://github.com/goreleaser/goreleaser/issues/6678); the partial fix in goreleaser#6466 is insufficient), so a style gate would block every PR until that ships. A tap-level `.rubocop.yml` cop-allowlist does **not** override `brew style` (it uses Homebrew's own bundled RuboCop config), so the gate stays off rather than being narrowed. Until then, still validate `brew style` locally:
 
 - If `brew` is available: `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>`.
 - Otherwise: `ruby -c Casks/<cask>.rb` for a syntax check, plus a careful manual read.

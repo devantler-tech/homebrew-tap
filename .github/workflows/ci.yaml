@@ -87,6 +87,106 @@ jobs:
           done
           exit "$status"
 
+  style-casks:
+    name: 🎨 Style Casks
+    # `brew style` gate (#847). The GoReleaser-generated Casks are NOT style-clean as generated
+    # (stanza order, argument alignment, blank lines) and upstream declined to change the template
+    # (goreleaser/goreleaser#6678: "our casks don't need to pass brew style"), so this job first
+    # AUTOCORRECTS with `brew style --fix` — every known generated offense is autocorrectable — and
+    # pushes the correction back to the PR branch, then gates on a clean `brew style`. Runs on
+    # drafts too (unlike audit-casks): style is offline, so a draft GoReleaser Cask PR is fixed
+    # before its release asset even exists and the ready-flip audit sees a clean Cask.
+    # macOS runner for RuboCop-cop parity with audit-casks.
+    runs-on: macos-latest
+    permissions:
+      contents: read # pushes use the App token minted below, never the job token
+    steps:
+      - name: 🔒 Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit # brew style is offline; audit matches the repo's other jobs
+      - name: 🔑 Generate GitHub App Token
+        # Only same-repo PR events push the autocorrect commit (fork PRs have no secrets and no
+        # push rights; merge_group refs are immutable). An App token (not GITHUB_TOKEN) so the
+        # pushed commit retriggers CI — a GITHUB_TOKEN push leaves the new head SHA with no runs
+        # and the PR stuck on "expected" required checks.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] - GitHub App token generation, no environment scoping available for app installations
+      - name: 📥 Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Same-repo PR events check out the head branch with the App token so the autocorrect
+          # commit can be pushed back; merge_group and fork PRs check out read-only.
+          ref: ${{ github.head_ref || github.ref_name }}
+          persist-credentials: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+          token: ${{ steps.generate-token.outputs.token || github.token }}
+      - name: 🧪 Self-test — the gate must reject a style-offending Cask
+        # Regression guard mirroring audit-casks': prove `brew style` actually blocks. A Cask with
+        # a known generated-template offense (mis-aligned continuation argument) must FAIL style;
+        # if it ever passes, the gate has silently stopped enforcing. Offline and hermetic.
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          cat > "$scratch/style-selftest.rb" <<'RUBY'
+          cask "style-selftest" do
+            version "0.0.0"
+            sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+            url "https://example.invalid/style-selftest.zip",
+              verified: "example.invalid/"
+
+            name "style selftest"
+            desc "Deliberately style-offending Cask"
+            homepage "https://example.invalid/"
+            app "StyleSelftest.app"
+
+          end
+          RUBY
+          if brew style "$scratch/style-selftest.rb"; then
+            echo "::error::Self-test failed: a deliberately style-offending Cask passed brew style — the gate is not enforcing."
+            exit 1
+          fi
+          echo "Self-test OK: the style-offending Cask was correctly rejected."
+      - name: 🎨 brew style --fix (autocorrect generated Casks)
+        # May leave offenses it cannot autocorrect — the gate below decides.
+        id: fix
+        run: |
+          set -euo pipefail
+          brew style --fix ./Casks/ || true
+          if git diff --quiet -- Casks/; then
+            echo "dirty=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dirty=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 📤 Commit and push autocorrections (same-repo PR branch)
+        id: push
+        if: steps.fix.outputs.dirty == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9 # v7.1.0
+        with:
+          commit_message: "style: autocorrect Casks (brew style --fix)"
+          commit_user_name: generator-bot
+          commit_user_email: generator-bot@users.noreply.github.com
+          branch: ${{ github.head_ref }}
+          file_pattern: "Casks/*.rb"
+      - name: 🎨 brew style (gate)
+        # A dirty tree this run could NOT push back (merge_group / fork PR) must fail — passing on
+        # the locally-fixed tree would greenlight a style-dirty head SHA. When the autocorrect WAS
+        # pushed, the gate asserts the fixed tree and the pushed SHA re-runs the whole job cleanly.
+        env:
+          DIRTY: ${{ steps.fix.outputs.dirty }}
+          PUSHED: ${{ steps.push.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          if [ "$DIRTY" = "true" ] && [ "$PUSHED" != "true" ]; then
+            echo "::error::Casks are not brew style-clean and this run cannot push the autocorrection (merge_group or fork PR). Run 'brew style --fix ./Casks/' and commit."
+            exit 1
+          fi
+          brew style ./Casks/
+
   test-scripts:
     name: 🧪 Test scripts
     # Hermetic (no network, no Homebrew) regression test for the version-comparison predicate behind
@@ -111,10 +211,10 @@ jobs:
     name: CI - Required Checks
     if: always()
     runs-on: ubuntu-latest
-    needs: [audit-casks, test-scripts]
+    needs: [audit-casks, style-casks, test-scripts]
     permissions: {}
     steps:
       - name: ✅ Aggregate job checks
         uses: devantler-tech/actions/aggregate-job-checks@6a2f24aa5a859f7d0de66f9d0bde52254adba641 # v7.1.3
         with:
-          job-results: ${{ needs.audit-casks.result }} ${{ needs.test-scripts.result }}
+          job-results: ${{ needs.audit-casks.result }} ${{ needs.style-casks.result }} ${{ needs.test-scripts.result }}

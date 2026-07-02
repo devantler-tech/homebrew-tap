@@ -21,7 +21,7 @@ Each Cask carries `version`, per-platform `sha256` + `url` pointing at the corre
 
 ## Validation
 
-CI runs `brew audit --strict --online` on every Cask and blocks merge on failure. It does **not** yet run `brew style` — the GoReleaser-generated Casks (`# DO NOT EDIT`) currently trip 14 RuboCop style offenses (all auto-correctable: `Cask/StanzaOrder` ×7, `Layout/ArgumentAlignment` ×4, `Layout/EmptyLinesAroundBlockBody` ×2, `Cask/StanzaGrouping` ×1) rooted in the upstream GoReleaser cask template (tracked upstream in [goreleaser/goreleaser#6678](https://github.com/goreleaser/goreleaser/issues/6678); the partial fix in goreleaser#6466 is insufficient), so a style gate would block every PR until that ships. A tap-level `.rubocop.yml` cop-allowlist does **not** override `brew style` (it uses Homebrew's own bundled RuboCop config), so the gate stays off rather than being narrowed. Until then, still validate `brew style` locally:
+CI runs `brew audit --strict --online` on every Cask and blocks merge on failure. It also runs a `brew style` gate (`style-casks` in `ci.yaml`): the GoReleaser-generated Casks (`# DO NOT EDIT`) are not style-clean as generated and upstream declined to change the template ([goreleaser/goreleaser#6678](https://github.com/goreleaser/goreleaser/issues/6678), closed not-planned), and a tap-level `.rubocop.yml` cop-allowlist does **not** override `brew style` (it uses Homebrew's own bundled RuboCop config) — so the job first **autocorrects** with `brew style --fix` and pushes the correction back to same-repo PR branches (every known generated offense is auto-correctable), then gates on a clean `brew style`. Merge-group and fork-PR runs are check-only (they cannot push) and fail if the tree needs fixing. Validate locally:
 
 - If `brew` is available: `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>`.
 - Otherwise: `ruby -c Casks/<cask>.rb` for a syntax check, plus a careful manual read.
@@ -34,7 +34,7 @@ These conventions guide the autonomous **Daily AI Assistant** — and any agenti
 
 **Releases bump Casks automatically.** A tool release (e.g. ksail) opens its own `goreleaser/<cask>-v<version>` PR (as a draft, flipped ready after publish) to update a Cask's `url`/`version`/`sha256`. **Do NOT hand-edit version/sha to chase a release** — you'd race the automation and risk a wrong sha. Your job is Cask *correctness/hygiene*, not version bumps. **Do NOT hand-drive or hand-close superseded bump PRs either:** when a newer release ships first, `close-superseded-cask-bumps.yaml` closes the older `goreleaser/<cask>-v*` PRs (and deletes their branches) automatically — leave them to it.
 
-**Recommended local validation before any PR:** CI runs `brew audit --strict --online` (and blocks on it) but not `brew style` yet, so still validate `brew style` locally first — `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>` if `brew` is available; else `ruby -c Casks/<cask>.rb` + a careful read.
+**Recommended local validation before any PR:** CI runs `brew audit --strict --online` and the `style-casks` gate (`brew style` with autocorrect-and-push on same-repo PR branches) and blocks on both — still validate locally first: `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>` if `brew` is available; else `ruby -c Casks/<cask>.rb` + a careful read.
 
 **Task menu** (minimal; usually nothing to do):
 - **Triage** new issues/PRs; one insightful comment on the oldest un-commented item (e.g. an install-failure report → investigate the Cask).

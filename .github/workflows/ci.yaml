@@ -120,14 +120,22 @@ jobs:
           # autocorrect push touches Casks/*.rb, never workflow files.
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
-      - name: 📥 Checkout
+      # Two guarded checkouts instead of one parameterised `ref: github.head_ref` (CodeQL
+      # actions/untrusted-checkout): only a SAME-REPO PR — whose head only repo writers can push —
+      # checks out the head branch (pushable, App token); fork PRs and merge_group get the default
+      # read-only checkout of the event's own ref, so an untrusted head is never checked out.
+      - name: 📥 Checkout (same-repo PR — head branch, pushable)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          # Same-repo PR events check out the head branch with the App token so the autocorrect
-          # commit can be pushed back; merge_group and fork PRs check out read-only.
-          ref: ${{ github.head_ref || github.ref_name }}
-          persist-credentials: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-          token: ${{ steps.generate-token.outputs.token || github.token }}
+          ref: ${{ github.head_ref }}
+          persist-credentials: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          token: ${{ steps.generate-token.outputs.token }}
+      - name: 📥 Checkout (fork PR / merge_group — read-only)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: 🧪 Self-test — the gate must reject a style-offending Cask
         # Regression guard mirroring audit-casks': prove `brew style` actually blocks. A Cask with
         # a known generated-template offense (mis-aligned continuation argument) must FAIL style;

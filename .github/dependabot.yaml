@@ -4,3 +4,10 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    # Cooldown slows supply-chain attacks via freshly published action
+    # releases (zizmor dependabot-cooldown); mirrors the ksail config.
+    cooldown:
+      default-days: 7
+      # devantler-tech actions/workflows are our own code — bump now, no cooldown.
+      exclude:
+        - "devantler-tech/*"

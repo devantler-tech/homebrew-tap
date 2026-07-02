@@ -116,6 +116,10 @@ jobs:
         with:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] - GitHub App token generation, no environment scoping available for app installations
+          # Scope the token to this repo + contents:write only (zizmor github-app rule): the
+          # autocorrect push touches Casks/*.rb, never workflow files.
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
       - name: 📥 Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

@@ -100,7 +100,6 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: read # pushes use the App token minted below, never the job token
-      pull-requests: read # authoritative changed-file scope for same-repo autocorrection
     steps:
       - name: 🔒 Harden runner
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -118,7 +117,7 @@ jobs:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] - GitHub App token generation, no environment scoping available for app installations
           # Scope the token to this repo + contents:write only (zizmor github-app rule): the
-          # autocorrect push touches Casks/*.rb, never workflow files.
+          # autocorrect push touches exact manifest Cask paths, never workflow files.
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
       # Two guarded checkouts instead of one parameterised `ref: github.head_ref` (CodeQL
@@ -129,7 +128,10 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.head_ref }}
+          # Check out the event's immutable head, not the mutable branch name. The later leased push
+          # targets github.head_ref only if the remote still equals this exact SHA.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # immutable three-dot base/head scope needs complete merge-base history
           persist-credentials: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           token: ${{ steps.generate-token.outputs.token }}
       - name: 📥 Checkout (fork PR / merge_group — read-only)
@@ -170,14 +172,15 @@ jobs:
         # deliberately fails if that produced a diff which cannot be pushed.
         id: fix
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           EVENT_NAME: ${{ github.event_name }}
-          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TARGET_MANIFEST: ${{ runner.temp }}/cask-autocorrect-targets
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then
-            bash scripts/autocorrect-pr-casks.sh "$GITHUB_REPOSITORY" "$PR_NUMBER" "$GITHUB_OUTPUT"
+            bash scripts/autocorrect-pr-casks.sh "$BASE_SHA" "$EXPECTED_HEAD" "$GITHUB_OUTPUT" "$TARGET_MANIFEST"
           else
             brew style --fix ./Casks/ || true
             if git diff --quiet -- Casks/; then
@@ -189,13 +192,45 @@ jobs:
       - name: 📤 Commit and push autocorrections (same-repo PR branch)
         id: push
         if: steps.fix.outputs.dirty == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
-        with:
-          commit_message: "style: autocorrect Casks (brew style --fix)"
-          commit_user_name: generator-bot
-          commit_user_email: generator-bot@users.noreply.github.com
-          branch: ${{ github.head_ref }}
-          file_pattern: "Casks/*.rb"
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+          TARGET_MANIFEST: ${{ runner.temp }}/cask-autocorrect-targets
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] \
+            || ! git check-ref-format "refs/heads/$HEAD_REF" >/dev/null; then
+            echo "::error::Invalid event head or pull-request branch"
+            exit 1
+          fi
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_HEAD" ] || [ ! -s "$TARGET_MANIFEST" ]; then
+            echo "::error::Checkout or target manifest is not bound to the event head"
+            exit 1
+          fi
+
+          # Stage only the helper's post-guard manifest. The sentinel keeps Bash 3.2 nounset-safe.
+          targets=("")
+          while IFS= read -r target; do
+            if [[ ! "$target" =~ ^Casks/[A-Za-z0-9][A-Za-z0-9._+-]*\.rb$ ]] \
+              || [ ! -f "$target" ]; then
+              echo "::error::Unsafe target manifest path: $target"
+              exit 1
+            fi
+            git add -- "$target"
+            targets+=("$target")
+          done <"$TARGET_MANIFEST"
+          if [ "${#targets[@]}" -le 1 ] || git diff --cached --quiet -- "${targets[@]:1}"; then
+            echo "::error::Target manifest produced no staged Cask correction"
+            exit 1
+          fi
+
+          git config user.name generator-bot
+          git config user.email generator-bot@users.noreply.github.com
+          git commit -m "style: autocorrect Casks (brew style --fix)" -- "${targets[@]:1}"
+
+          # Exact compare-and-swap: a branch reset or sibling push after checkout rejects this push,
+          # even when the stale local commit would otherwise be a valid fast-forward.
+          git push --force-with-lease="refs/heads/$HEAD_REF:$EXPECTED_HEAD" origin "HEAD:refs/heads/$HEAD_REF"
       - name: 🎨 brew style (gate)
         # A dirty tree this run could NOT push back (merge_group / fork PR) must fail — passing on
         # the locally-fixed tree would greenlight a style-dirty head SHA. When the autocorrect WAS

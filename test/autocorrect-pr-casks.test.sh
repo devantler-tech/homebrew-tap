@@ -39,6 +39,9 @@ done
 if [ "${BREW_MUTATE_OUTSIDE:-0}" = 1 ]; then
   printf 'wrong-scope\n' >>Casks/sibling.rb
 fi
+if [ "${BREW_CREATE_UNTRACKED:-0}" = 1 ]; then
+  printf 'untracked-scope-escape\n' >Casks/untracked.rb
+fi
 exit "${BREW_EXIT:-0}"
 STUB
   chmod +x "$root/bin/gh" "$root/bin/brew"
@@ -150,6 +153,51 @@ assert_out_of_scope_mutation_is_fatal() {
   fi
 }
 
+assert_untracked_scope_escape_is_fatal() {
+  local root
+  root="$(new_fixture untracked-escape)"
+  if (
+    cd "$root"
+    PATH="$root/bin:$PATH" \
+      GH_ARGS_FILE="$root/gh.args" \
+      BREW_ARGS_FILE="$root/brew.args" \
+      GH_FILES=$'Casks/target.rb\n' \
+      BREW_CREATE_UNTRACKED=1 \
+      bash "$script" devantler-tech/homebrew-tap 42 "$root/output"
+  ) >/dev/null 2>&1; then
+    echo "FAIL: an untracked sibling Cask bypassed the post-fix allowlist"
+    fail=1
+  else
+    echo "ok: scope guard rejects an untracked sibling created by autocorrection"
+  fi
+}
+
+assert_staged_start_is_fatal() {
+  local root
+  root="$(new_fixture staged-start)"
+  (
+    cd "$root"
+    printf 'staged-scope-escape\n' >>Casks/sibling.rb
+    git add Casks/sibling.rb
+  )
+  if (
+    cd "$root"
+    PATH="$root/bin:$PATH" \
+      GH_ARGS_FILE="$root/gh.args" \
+      BREW_ARGS_FILE="$root/brew.args" \
+      GH_FILES=$'Casks/target.rb\n' \
+      bash "$script" devantler-tech/homebrew-tap 42 "$root/output"
+  ) >/dev/null 2>&1; then
+    echo "FAIL: a staged sibling Cask bypassed the clean-start guard"
+    fail=1
+  elif [ -e "$root/brew.args" ]; then
+    echo "FAIL: brew ran despite a staged sibling Cask at startup"
+    fail=1
+  else
+    echo "ok: staged Cask state fails closed before autocorrection"
+  fi
+}
+
 assert_no_cask_is_noop() {
   local root dirty
   root="$(new_fixture no-cask)"
@@ -204,6 +252,8 @@ assert_pr_scoped_fix
 assert_api_failure_is_fatal
 assert_unsafe_path_is_fatal
 assert_out_of_scope_mutation_is_fatal
+assert_untracked_scope_escape_is_fatal
+assert_staged_start_is_fatal
 assert_no_cask_is_noop
 assert_workflow_contract
 

@@ -75,9 +75,14 @@ if [ "$target_count" -eq 0 ]; then
   exit 0
 fi
 
-# A dirty start would make the post-fix allowlist ambiguous. The Actions checkout is expected to be
-# clean, so stop rather than accidentally attributing an earlier mutation to this autocorrect pass.
-if ! git diff --quiet -- Casks/; then
+# A dirty start would make the post-fix allowlist ambiguous. Porcelain status includes tracked,
+# staged, and untracked paths; `git diff` alone omits the latter two and would let the broad commit
+# action pick up state this helper never authorized.
+if ! initial_status="$(git status --porcelain=v1 --untracked-files=all -- Casks/)"; then
+  echo "BLOCKED: could not inspect initial Cask status" >&2
+  exit 1
+fi
+if [ -n "$initial_status" ]; then
   echo "BLOCKED: Casks were already dirty before autocorrection" >&2
   exit 1
 fi
@@ -87,13 +92,28 @@ echo "Autocorrecting PR-scoped Casks: ${targets[*]:1}"
 # corrections; the later full-tree `brew style` gate decides whether any offense remains.
 brew style --fix "${targets[@]:1}" || true
 
-if ! dirty_files="$(git diff --name-only -- Casks/)"; then
-  echo "BLOCKED: could not enumerate autocorrection changes" >&2
+if ! cask_status="$(git status --porcelain=v1 --untracked-files=all -- Casks/)"; then
+  echo "BLOCKED: could not enumerate autocorrection status" >&2
   exit 1
 fi
 
-while IFS= read -r dirty_file; do
-  [ -z "$dirty_file" ] && continue
+dirty_files=""
+while IFS= read -r status_line; do
+  [ -z "$status_line" ] && continue
+  if [ "${#status_line}" -lt 4 ]; then
+    echo "BLOCKED: malformed Cask status: $status_line" >&2
+    exit 1
+  fi
+  index_and_worktree="${status_line:0:2}"
+  dirty_file="${status_line:3}"
+
+  # Homebrew should only leave an unstaged modification to an existing target. Reject staged,
+  # untracked, deleted, renamed, copied, or conflicted state outright; the pinned commit action
+  # would otherwise stage those paths through its broad Casks/*.rb file pattern.
+  if [ "$index_and_worktree" != " M" ]; then
+    echo "BLOCKED: autocorrection produced unsafe Cask status '$index_and_worktree' for $dirty_file" >&2
+    exit 1
+  fi
   allowed=0
   for target in "${targets[@]:1}"; do
     if [ "$target" = "$dirty_file" ]; then
@@ -105,8 +125,14 @@ while IFS= read -r dirty_file; do
     echo "BLOCKED: autocorrection dirtied out-of-scope Cask: $dirty_file" >&2
     exit 1
   fi
+  if [ -z "$dirty_files" ]; then
+    dirty_files="$dirty_file"
+  else
+    dirty_files="$dirty_files
+$dirty_file"
+  fi
 done <<EOF
-$dirty_files
+$cask_status
 EOF
 
 if [ -z "$dirty_files" ]; then

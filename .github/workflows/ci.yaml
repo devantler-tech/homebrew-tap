@@ -100,6 +100,7 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: read # pushes use the App token minted below, never the job token
+      pull-requests: read # authoritative changed-file scope for same-repo autocorrection
     steps:
       - name: 🔒 Harden runner
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -164,15 +165,26 @@ jobs:
           fi
           echo "Self-test OK: the style-offending Cask was correctly rejected."
       - name: 🎨 brew style --fix (autocorrect generated Casks)
-        # May leave offenses it cannot autocorrect — the gate below decides.
+        # A pushable same-repo PR may modify only the non-deleted Casks that PR already changes.
+        # Fork/merge-group refs remain check-only: locally fix the complete tree, then the gate below
+        # deliberately fails if that produced a diff which cannot be pushed.
         id: fix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          brew style --fix ./Casks/ || true
-          if git diff --quiet -- Casks/; then
-            echo "dirty=false" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then
+            bash scripts/autocorrect-pr-casks.sh "$GITHUB_REPOSITORY" "$PR_NUMBER" "$GITHUB_OUTPUT"
           else
-            echo "dirty=true" >> "$GITHUB_OUTPUT"
+            brew style --fix ./Casks/ || true
+            if git diff --quiet -- Casks/; then
+              echo "dirty=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "dirty=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
       - name: 📤 Commit and push autocorrections (same-repo PR branch)
         id: push
@@ -217,7 +229,11 @@ jobs:
         with:
           persist-credentials: false # read-only job; never pushes
       - name: 🧪 Run script tests
-        run: bash test/is-superseded.test.sh
+        run: |
+          set -euo pipefail
+          for test_script in test/*.test.sh; do
+            bash "$test_script"
+          done
 
   required-checks:
     name: CI - Required Checks

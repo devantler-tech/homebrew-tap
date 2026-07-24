@@ -31,7 +31,7 @@ jobs:
         with:
           egress-policy: audit # brew audit --online fetches the release assets
       - name: 📥 Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false # read-only job; never pushes
       - name: 🧪 Self-test — the gate must reject a broken Cask
@@ -126,7 +126,7 @@ jobs:
       # read-only checkout of the event's own ref, so an untrusted head is never checked out.
       - name: 📥 Checkout (same-repo PR — head branch, pushable)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Check out the event's immutable head, not the mutable branch name. The later leased push
           # targets github.head_ref only if the remote still equals this exact SHA.
@@ -136,7 +136,7 @@ jobs:
           token: ${{ steps.generate-token.outputs.token }}
       - name: 📥 Checkout (fork PR / merge_group — read-only)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: 🧪 Self-test — the gate must reject a style-offending Cask
@@ -260,7 +260,7 @@ jobs:
         with:
           egress-policy: audit # the test needs no network; audit matches the repo's other jobs
       - name: 📥 Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false # read-only job; never pushes
       - name: 🧪 Run script tests

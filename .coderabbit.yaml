@@ -5,6 +5,10 @@
 # no value. Disable CodeRabbit's automatic PR reviews here, and also suppress its
 # review-status (progress/summary) posts to keep the bot fully quiet on this tap.
 reviews:
+  # Primary lever for monorepo#2344 / homebrew-tap#1286: even with auto_review off,
+  # pin fail_commit_status so an inherited UI/org override cannot fail outward commit
+  # statuses on rate-limit/errors (schema default is false).
+  fail_commit_status: false
   review_status: false
   auto_review:
     enabled: false

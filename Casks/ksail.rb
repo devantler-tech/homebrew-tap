@@ -6,19 +6,19 @@ cask "ksail" do
     on_arm do
       sha256 "f91bb4eed8dcc1f00f42b6dc264f0de543b85998abeb62037a659cf6968e3c44"
       url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/ksail_#{version}_darwin_arm64.tar.gz",
-        verified: "github.com/devantler-tech/ksail/"
+          verified: "github.com/devantler-tech/ksail/"
     end
   end
   on_linux do
     on_arm do
       sha256 "e6a039372362d0e135e0593307524f7f172f275fcc21409129922043904c2a89"
       url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/ksail_#{version}_linux_arm64.tar.gz",
-        verified: "github.com/devantler-tech/ksail/"
+          verified: "github.com/devantler-tech/ksail/"
     end
     on_intel do
       sha256 "9a03a7bb7e901bd627d0a1edf99fdda35955d06173413176e9f511f20b17119b"
       url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/ksail_#{version}_linux_amd64.tar.gz",
-        verified: "github.com/devantler-tech/ksail/"
+          verified: "github.com/devantler-tech/ksail/"
     end
   end
 

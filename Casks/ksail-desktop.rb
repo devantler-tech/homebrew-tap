@@ -2,19 +2,19 @@
 cask "ksail-desktop" do
   version "7.182.8"
 
+  on_macos do
+    on_arm do
+      sha256 "c7588f05f8cf39a0eb838a4319478c451ee1541012a91f00ec267cf2f11ed7f4"
+      url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/KSail_#{version}_darwin_arm64.zip"
+    end
+  end
+
   name "ksail-desktop"
   desc "Native desktop app to manage local Kubernetes clusters"
   homepage "https://ksail.devantler.tech/"
 
   livecheck do
     skip "Auto-generated on release."
-  end
-
-  on_macos do
-    on_arm do
-      sha256 "c7588f05f8cf39a0eb838a4319478c451ee1541012a91f00ec267cf2f11ed7f4"
-      url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/KSail_#{version}_darwin_arm64.zip"
-    end
   end
 
   depends_on macos: :big_sur

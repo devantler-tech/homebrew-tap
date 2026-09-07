@@ -2,7 +2,6 @@
 cask "ksail" do
   version "7.183.0"
 
-  name "ksail"
   on_macos do
     on_arm do
       sha256 "75e01ad9ae494dbe74fce93faeb68f0949409087b3bf912ad48540a20fbfde69"
@@ -20,6 +19,7 @@ cask "ksail" do
     end
   end
 
+  name "ksail"
   desc "CLI tool to manage Kubernetes clusters and workloads"
   homepage "https://ksail.devantler.tech/"
 

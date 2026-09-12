@@ -11,7 +11,6 @@
 - `Casks/world-at-ruin.rb` — Cask for World at Ruin (macOS arm64). Generated (`# DO NOT EDIT`).
 - `README.md` — tap landing page: a Cask/Description table and install instructions.
 - `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
-- `.github/workflows/sync-labels.yaml` — weekly + on-demand GitHub label sync.
 - `.github/workflows/todos.yaml` — scans pushed-to-`main` commits for TODO comments and files issues.
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.
 - `scripts/autocorrect-pr-casks.sh` — autocorrects brew style offenses on PR branches.

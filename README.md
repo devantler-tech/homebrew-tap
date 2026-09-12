@@ -6,6 +6,7 @@ The [Homebrew](https://brew.sh) tap for [devantler-tech](https://github.com/deva
 | ---- | ----------- |
 | [ksail](https://github.com/devantler-tech/ksail) | KSail is a CLI tool to manage clusters and workloads. |
 | [ksail-desktop](https://github.com/devantler-tech/ksail) | KSail desktop app — manage local Kubernetes clusters in a native window |
+| [world-at-ruin](https://github.com/devantler-tech/world-at-ruin) | Cloud-native MMORPG built almost entirely by agents |
 
 ## How do I install these Casks?
 

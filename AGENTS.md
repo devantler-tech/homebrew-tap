@@ -8,14 +8,14 @@
 
 - `Casks/ksail.rb` — Cask for the `ksail` CLI binary (macOS arm64, Linux amd64/arm64). GoReleaser-generated (`# DO NOT EDIT`).
 - `Casks/ksail-desktop.rb` — Cask for the `KSail.app` desktop app (macOS arm64). GoReleaser-generated (`# DO NOT EDIT`).
+- `Casks/world-at-ruin.rb` — Cask for World at Ruin (macOS arm64). Generated (`# DO NOT EDIT`).
 - `README.md` — tap landing page: a Cask/Description table and install instructions.
 - `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
 - `.github/workflows/sync-labels.yaml` — weekly + on-demand GitHub label sync.
 - `.github/workflows/todos.yaml` — scans pushed-to-`main` commits for TODO comments and files issues.
-- `.github/workflows/close-superseded-cask-bumps.yaml` — closes stale `goreleaser/<cask>-v*` bump PRs whose version is at-or-below the version already on `main` (and deletes their branches), keeping only a genuinely-newer pending bump. Runs after a bump lands on `main`, daily, and on demand. Its close/keep version comparison lives in `scripts/is-superseded.sh`.
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.
-- `scripts/is-superseded.sh` — version-comparison predicate (`<candidate> <current>` → exit 0 = superseded/close, exit 1 = newer/keep) shared by `close-superseded-cask-bumps.yaml`; the single source of truth for the destructive close/keep decision.
-- `test/is-superseded.test.sh` — hermetic regression test for `scripts/is-superseded.sh` (no network/Homebrew); run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.
+- `scripts/autocorrect-pr-casks.sh` — autocorrects brew style offenses on PR branches.
+- `test/autocorrect-pr-casks.test.sh` — hermetic regression test for `scripts/autocorrect-pr-casks.sh`; run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.
 
 Each Cask carries `version`, per-platform `sha256` + `url` pointing at the corresponding `devantler-tech/ksail` GitHub release asset, a `livecheck` skipped as auto-generated-on-release, a `binary`/`app` stanza, and a `postflight` that strips the macOS quarantine xattr.
 
@@ -32,7 +32,7 @@ Note the Casks are GoReleaser-generated and marked `# DO NOT EDIT`; the upstream
 
 These conventions guide the autonomous **Agentic Engineer** — and any agentic tool — doing repository maintenance. The **shared** cross-repo conventions (autonomy and promotion, the trust gate, untrusted input, per-run worktrees, Conventional-Commit titles, root-cause fixing, the AI-disclosure line) are defined centrally in the devantler-tech monorepo `AGENTS.md` and apply here too. **Read them there rather than from a copy** — this section deliberately keeps only what is specific to this tap, because a restatement of the shared rules drifts silently as they change.
 
-**Releases bump Casks automatically, on an evergreen branch per cask.** A tool release (e.g. ksail) force-updates one long-lived branch — `goreleaser/ksail`, `goreleaser/ksail-desktop` — and reuses a single open PR per cask to update that Cask's `url`/`version`/`sha256`. There is no `-v<version>` branch and no per-release PR. **Do NOT hand-edit version/sha to chase a release** — you'd race the automation and risk a wrong sha. Your job is Cask *correctness/hygiene*, not version bumps.
+**Releases bump Casks automatically, on an evergreen branch per cask.** A tool release (e.g. ksail, world-at-ruin) force-updates one long-lived branch — `goreleaser/ksail`, `goreleaser/ksail-desktop`, `goreleaser/world-at-ruin` — and reuses a single open PR per cask to update that Cask's `url`/`version`/`sha256`. There is no `-v<version>` branch and no per-release PR. **Do NOT hand-edit version/sha to chase a release** — you'd race the automation and risk a wrong sha. Your job is Cask *correctness/hygiene*, not version bumps.
 
 🔴 **The draft state on a `goreleaser/*` PR is a release gate — do NOT promote it.** ksail's CD workflow re-drafts these PRs at the start of every release (`redraft-evergreen-cask-prs.sh`), and flips them ready only once the release assets are published. Promoting one early does real damage: `🔍 Audit Casks` is skipped while a PR is a draft, so promoting runs it against a release that does not exist yet and it fails on a `404` for the download URL. Leave promotion and merge to the release pipeline; a red audit on a freshly-opened cask PR usually means the release is still publishing, not that the Cask is wrong.
 

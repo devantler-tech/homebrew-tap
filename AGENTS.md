@@ -2,7 +2,7 @@
 
 ## Project overview
 
-`devantler-tech/homebrew-tap` is the **Homebrew tap** for devantler-tech tools — installable via `brew tap devantler-tech/tap`. Despite the repo name, it currently distributes **Casks** (not formulas): the `ksail` CLI and the `ksail-desktop` app. Users install with `brew install --cask devantler-tech/tap/<cask>`.
+`devantler-tech/homebrew-tap` is the **Homebrew tap** for devantler-tech tools — installable via `brew tap devantler-tech/tap`. Despite the repo name, it currently distributes **Casks** (not formulas): the `ksail` CLI, the `ksail-desktop` app, and the World at Ruin game. Users install with `brew install --cask devantler-tech/tap/<cask>`.
 
 ## Structure
 

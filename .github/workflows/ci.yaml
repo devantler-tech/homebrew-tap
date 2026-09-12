@@ -248,9 +248,8 @@ jobs:
 
   test-scripts:
     name: 🧪 Test scripts
-    # Hermetic (no network, no Homebrew) regression test for the version-comparison predicate behind
-    # close-superseded-cask-bumps.yaml's destructive close/keep decision. Runs on Linux on every PR so
-    # a change to scripts/is-superseded.sh is gated here — that workflow only runs on push/schedule.
+    # Hermetic (no network, no Homebrew) regression tests for repository scripts (e.g. autocorrect-pr-casks.sh).
+    # Runs on Linux on every PR.
     runs-on: ubuntu-latest
     permissions:
       contents: read # checkout

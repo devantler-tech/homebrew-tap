@@ -24,6 +24,10 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: read # checkout
+    outputs:
+      # Only the brew style step decides drift. A checkout or runner failure fails this job instead,
+      # leaving the outcome empty, so it neither opens nor closes the issue.
+      outcome: ${{ steps.brew-style.outcome }}
     steps:
       - name: 🔒 Harden runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -34,6 +38,9 @@ jobs:
         with:
           persist-credentials: false # read-only job; never pushes
       - name: 🎨 brew style (every Cask)
+        id: brew-style
+        # The report job fails the run on drift, after recording it.
+        continue-on-error: true
         run: brew style ./Casks/
 
   report:
@@ -49,7 +56,7 @@ jobs:
         with:
           egress-policy: audit
       - name: 📣 Open or update the drift issue
-        if: needs.style.result != 'success'
+        if: needs.style.outputs.outcome == 'failure'
         uses: devantler-tech/actions/upsert-issue@da153eb43b8333f13094abb151a48dc11e431988 # v13.7.4
         with:
           title: "A Cask on main is not brew style-clean"
@@ -57,14 +64,18 @@ jobs:
             `brew style ./Casks/` failed on `main`. Pull requests only style-check the Casks they change, so this is either a new cop on the macOS runner image flagging a Cask nobody touched, or a Cask that reached `main` without passing the gate.
 
             - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            - Result: `${{ needs.style.result }}`
 
             Run `brew style --fix` on the Casks the run names and commit the result in a pull request. The fix is a reorder or reformat only; review that version, URL and checksum are unchanged. This issue is updated by every failing run and closed by the next passing one.
       - name: ✅ Close the drift issue
-        if: needs.style.result == 'success'
+        if: needs.style.outputs.outcome == 'success'
         uses: devantler-tech/actions/upsert-issue@da153eb43b8333f13094abb151a48dc11e431988 # v13.7.4
         with:
           title: "A Cask on main is not brew style-clean"
           open: "false"
           body: "Every Cask on main is brew style-clean."
           close-comment: "✅ ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} passed on `main`, so every Cask is style-clean again. Closing."
+      - name: ❌ Fail on drift
+        if: needs.style.outputs.outcome == 'failure'
+        run: |
+          echo "::error::brew style failed on main; see the style job's log for the Casks it names."
+          exit 1

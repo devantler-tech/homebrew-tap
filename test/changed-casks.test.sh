@@ -201,6 +201,16 @@ assert_workflow_contract() {
     || ! grep -Fq 'issues: write' "$drift"; then
     echo "FAIL: drift on main is not reported as an issue"
     fail=1
+  elif grep -Fq 'needs.style.result' "$drift" \
+    || ! grep -Fq "if: needs.style.outputs.outcome == 'failure'" "$drift" \
+    || ! grep -Fq "if: needs.style.outputs.outcome == 'success'" "$drift"; then
+    # A checkout or runner failure fails the style job too, and is not a Cask drifting.
+    echo "FAIL: the drift issue follows the style job's result, not the brew style step's"
+    fail=1
+  elif [ "$(grep -Fc 'continue-on-error: true' "$drift")" -ne 1 ] \
+    || ! grep -Fq 'outcome: ${{ steps.brew-style.outcome }}' "$drift"; then
+    echo "FAIL: only the brew style step may continue on error, and its outcome must reach the report"
+    fail=1
   else
     echo "ok: the gate is scoped to the change and main is checked in full"
   fi

@@ -261,8 +261,8 @@ assert_workflow_contract() {
   elif ! grep -Fq 'git push --force-with-lease="refs/heads/$HEAD_REF:$EXPECTED_HEAD" origin "HEAD:refs/heads/$HEAD_REF"' <<<"$style_block"; then
     echo "FAIL: autocorrect push is not an exact-event-head compare-and-swap"
     fail=1
-  elif ! grep -Fq 'brew style --fix ./Casks/ || true' <<<"$style_block"; then
-    echo "FAIL: the check-only fallback no longer evaluates the complete Cask tree"
+  elif ! grep -Fq 'bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"' <<<"$style_block"; then
+    echo "FAIL: the check-only fallback does not fix the Casks the change touches"
     fail=1
   elif ! grep -Fq 'for test_script in test/*.test.sh; do' "$workflow"; then
     echo "FAIL: CI does not execute every hermetic script regression test"

@@ -12,15 +12,17 @@
 - `README.md` — tap landing page: a Cask/Description table and install instructions.
 - `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
 - `.github/workflows/todos.yaml` — scans pushed-to-`main` commits for TODO comments and files issues.
+- `.github/workflows/style-drift.yaml` — runs `brew style` on every Cask on `main` after each merge and daily, and keeps one issue open while any Cask fails.
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.
 - `scripts/autocorrect-pr-casks.sh` — autocorrects brew style offenses on PR branches.
-- `test/autocorrect-pr-casks.test.sh` — hermetic regression test for `scripts/autocorrect-pr-casks.sh`; run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.
+- `scripts/changed-casks.sh` — lists the Casks a pull request or merge group adds or modifies, which is what the style gate checks.
+- `test/*.test.sh` — hermetic regression tests for the scripts above; run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.
 
 Each Cask carries `version`, per-platform `sha256` + `url` pointing at the corresponding `devantler-tech/ksail` GitHub release asset, a `livecheck` skipped as auto-generated-on-release, a `binary`/`app` stanza, and a `postflight` that strips the macOS quarantine xattr.
 
 ## Validation
 
-CI runs `brew audit --strict --online` on every Cask and blocks merge on failure. It also runs a `brew style` gate (`style-casks` in `ci.yaml`): the GoReleaser-generated Casks (`# DO NOT EDIT`) are not style-clean as generated and upstream declined to change the template ([goreleaser/goreleaser#6678](https://github.com/goreleaser/goreleaser/issues/6678), closed not-planned), and a tap-level `.rubocop.yml` cop-allowlist does **not** override `brew style` (it uses Homebrew's own bundled RuboCop config) — so the job first **autocorrects** with `brew style --fix` and pushes the correction back to same-repo PR branches (every known generated offense is auto-correctable), then gates on a clean `brew style`. Merge-group and fork-PR runs are check-only (they cannot push) and fail if the tree needs fixing. Validate locally:
+CI runs `brew audit --strict --online` on every Cask and blocks merge on failure. It also runs a `brew style` gate (`style-casks` in `ci.yaml`): the GoReleaser-generated Casks (`# DO NOT EDIT`) are not style-clean as generated and upstream declined to change the template ([goreleaser/goreleaser#6678](https://github.com/goreleaser/goreleaser/issues/6678), closed not-planned), and a tap-level `.rubocop.yml` cop-allowlist does **not** override `brew style` (it uses Homebrew's own bundled RuboCop config) — so the job first **autocorrects** with `brew style --fix` and pushes the correction back to same-repo PR branches (every known generated offense is auto-correctable), then gates on a clean `brew style`. The gate checks only the Casks the pull request or merge group adds or modifies, so a change that touches no Cask cannot fail on another Cask's style. Merge-group and fork-PR runs are check-only (they cannot push) and fail if a changed Cask needs fixing. `style-drift.yaml` checks every Cask on `main`, because a newer macOS runner image can bring a cop that flags a Cask nobody changed. Validate locally:
 
 - If `brew` is available: `brew style ./Casks/<cask>.rb` and `brew audit --strict --online --cask <cask>`.
 - Otherwise: `ruby -c Casks/<cask>.rb` for a syntax check, plus a careful manual read.

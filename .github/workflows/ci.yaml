@@ -96,6 +96,9 @@ jobs:
     # pushes the correction back to the PR branch, then gates on a clean `brew style`. Runs on
     # drafts too (unlike audit-casks): style is offline, so a draft GoReleaser Cask PR is fixed
     # before its release asset even exists and the ready-flip audit sees a clean Cask.
+    # Only the Casks the PR or merge group adds or modifies are fixed and gated, so a change that
+    # touches no Cask cannot fail on another Cask's style (a newer runner's cops can flag a Cask
+    # nobody changed, #1556). style-drift.yaml checks every Cask on main and reports that drift.
     # macOS runner for RuboCop-cop parity with audit-casks.
     runs-on: macos-latest
     permissions:
@@ -138,6 +141,7 @@ jobs:
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0 # the style scope needs the base/head merge base
           persist-credentials: false
       - name: 🧪 Self-test — the gate must reject a style-offending Cask
         # Regression guard mirroring audit-casks': prove `brew style` actually blocks. A Cask with
@@ -168,8 +172,8 @@ jobs:
           echo "Self-test OK: the style-offending Cask was correctly rejected."
       - name: 🎨 brew style --fix (autocorrect generated Casks)
         # A pushable same-repo PR may modify only the non-deleted Casks that PR already changes.
-        # Fork/merge-group refs remain check-only: locally fix the complete tree, then the gate below
-        # deliberately fails if that produced a diff which cannot be pushed.
+        # Fork/merge-group refs remain check-only: locally fix the Casks the change touches, then
+        # the gate below deliberately fails if that produced a diff which cannot be pushed.
         id: fix
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -177,12 +181,22 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           TARGET_MANIFEST: ${{ runner.temp }}/cask-autocorrect-targets
+          SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          SCOPE_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          SCOPE_MANIFEST: ${{ runner.temp }}/cask-style-scope
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then
             bash scripts/autocorrect-pr-casks.sh "$BASE_SHA" "$EXPECTED_HEAD" "$GITHUB_OUTPUT" "$TARGET_MANIFEST"
           else
-            brew style --fix ./Casks/ || true
+            bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"
+            # Bash 3.2 (the macOS runner default) treats an empty array as unset under `set -u`, so
+            # index 0 holds an inert sentinel and only the slice from index 1 is used.
+            scope=("")
+            while IFS= read -r cask; do scope+=("$cask"); done <"$SCOPE_MANIFEST"
+            if [ "${#scope[@]}" -gt 1 ]; then
+              brew style --fix "${scope[@]:1}" || true
+            fi
             if git diff --quiet -- Casks/; then
               echo "dirty=false" >> "$GITHUB_OUTPUT"
             else
@@ -238,13 +252,23 @@ jobs:
         env:
           DIRTY: ${{ steps.fix.outputs.dirty }}
           PUSHED: ${{ steps.push.outcome == 'success' }}
+          SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          SCOPE_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          SCOPE_MANIFEST: ${{ runner.temp }}/cask-style-scope
         run: |
           set -euo pipefail
           if [ "$DIRTY" = "true" ] && [ "$PUSHED" != "true" ]; then
-            echo "::error::Casks are not brew style-clean and this run cannot push the autocorrection (merge_group or fork PR). Run 'brew style --fix ./Casks/' and commit."
+            echo "::error::The changed Casks are not brew style-clean and this run cannot push the autocorrection (merge_group or fork PR). Run 'brew style --fix' on them and commit."
             exit 1
           fi
-          brew style ./Casks/
+          bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"
+          scope=("")
+          while IFS= read -r cask; do scope+=("$cask"); done <"$SCOPE_MANIFEST"
+          if [ "${#scope[@]}" -le 1 ]; then
+            echo "No Casks changed; nothing to style-check. style-drift.yaml checks every Cask on main."
+            exit 0
+          fi
+          brew style "${scope[@]:1}"
 
   test-scripts:
     name: 🧪 Test scripts

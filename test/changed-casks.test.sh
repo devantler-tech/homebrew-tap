@@ -197,7 +197,7 @@ assert_workflow_contract() {
     || ! grep -Fq 'run: brew style ./Casks/' "$drift"; then
     echo "FAIL: the drift check does not run the full brew style on main pushes and on a schedule"
     fail=1
-  elif ! grep -Fq 'devantler-tech/actions/upsert-issue@' "$drift" \
+  elif ! grep -Fq 'devantler-tech/.github/actions/upsert-issue@' "$drift" \
     || ! grep -Fq 'issues: write' "$drift"; then
     echo "FAIL: drift on main is not reported as an issue"
     fail=1

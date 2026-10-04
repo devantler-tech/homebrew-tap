@@ -10,7 +10,7 @@
 - `Casks/ksail-desktop.rb` — Cask for the `KSail.app` desktop app (macOS arm64). GoReleaser-generated (`# DO NOT EDIT`).
 - `Casks/world-at-ruin.rb` — Cask for World at Ruin (macOS arm64). Generated (`# DO NOT EDIT`).
 - `README.md` — tap landing page: a Cask/Description table and install instructions.
-- `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
+- `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/.github/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
 - `.github/workflows/todos.yaml` — scans pushed-to-`main` commits for TODO comments and files issues.
 - `.github/workflows/style-drift.yaml` — runs `brew style` on every Cask on `main` after each merge and daily, and keeps one issue open while any Cask fails.
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.

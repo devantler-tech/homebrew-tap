@@ -57,7 +57,7 @@ jobs:
           egress-policy: audit
       - name: 📣 Open or update the drift issue
         if: needs.style.outputs.outcome == 'failure'
-        uses: devantler-tech/.github/actions/upsert-issue@c252e112ef55d1aef3f048e75ac65f566edac583 # v7.4.0
+        uses: devantler-tech/.github/actions/upsert-issue@fca583ac795d56928c5b542944b6e0963ea1e270 # v7.8.5
         with:
           title: "A Cask on main is not brew style-clean"
           body: |
@@ -68,7 +68,7 @@ jobs:
             Run `brew style --fix` on the Casks the run names and commit the result in a pull request. The fix is a reorder or reformat only; review that version, URL and checksum are unchanged. This issue is updated by every failing run and closed by the next passing one.
       - name: ✅ Close the drift issue
         if: needs.style.outputs.outcome == 'success'
-        uses: devantler-tech/.github/actions/upsert-issue@c252e112ef55d1aef3f048e75ac65f566edac583 # v7.4.0
+        uses: devantler-tech/.github/actions/upsert-issue@fca583ac795d56928c5b542944b6e0963ea1e270 # v7.8.5
         with:
           title: "A Cask on main is not brew style-clean"
           open: "false"

@@ -41,6 +41,12 @@ revoking that recorded trust.
 These commands download release artifacts and change your local installation.
 Run only the one for the product you intend to install, on a supported platform:
 
+Before installing, inspect the [Cask definitions](Casks/) and each product's release.
+On macOS these Casks remove `com.apple.quarantine` after installation, bypassing the
+normal quarantine-triggered Gatekeeper assessment. Consider that side effect and
+Homebrew's [security model](https://docs.brew.sh/Homebrew-Security-and-Supply-Chain#casks-have-a-different-trust-model)
+before trusting or installing a package.
+
 ```sh
 brew install --cask devantler-tech/tap/ksail
 brew install --cask devantler-tech/tap/ksail-desktop
@@ -51,11 +57,6 @@ For the CLI, `ksail --help` is a useful installation check that does not create 
 cluster. Open the desktop apps from Applications. Follow each product's linked
 guide for its runtime dependencies and next steps; installing a package does
 not prove its backend or every feature is available.
-
-Inspect the [Cask definitions](Casks/) before trusting a custom tap. The macOS
-definitions include post-install quarantine handling; the app release and
-Homebrew's [security model](https://docs.brew.sh/Homebrew-Security-and-Supply-Chain#casks-have-a-different-trust-model) deserve separate
-consideration from this package listing.
 
 To refresh an existing tap, `brew update` updates your Homebrew/tap metadata;
 `brew upgrade --cask devantler-tech/tap/ksail` upgrades that installed product.

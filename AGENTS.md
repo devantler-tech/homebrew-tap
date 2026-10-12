@@ -8,7 +8,7 @@
 
 - `Casks/ksail.rb` — Cask for the `ksail` CLI binary (macOS arm64, Linux amd64/arm64). GoReleaser-generated (`# DO NOT EDIT`).
 - `Casks/ksail-desktop.rb` — Cask for the `KSail.app` desktop app (macOS arm64). GoReleaser-generated (`# DO NOT EDIT`).
-- `Casks/world-at-ruin.rb` — Cask for World at Ruin (macOS arm64). Generated (`# DO NOT EDIT`).
+- `Casks/world-at-ruin.rb` — Cask for World at Ruin (macOS universal, Apple Silicon and Intel). Generated (`# DO NOT EDIT`).
 - `README.md` — tap landing page: a Cask/Description table and install instructions.
 - `.github/workflows/ci.yaml` — runs `brew audit --strict --online` on every Cask (macOS) and aggregates the result into the required-checks gate (`devantler-tech/.github/actions/aggregate-job-checks`) on `pull_request` and `merge_group`.
 - `.github/workflows/todos.yaml` — scans pushed-to-`main` commits for TODO comments and files issues.
@@ -18,7 +18,7 @@
 - `scripts/changed-casks.sh` — lists the Casks a pull request or merge group adds or modifies, which is what the style gate checks.
 - `test/*.test.sh` — hermetic regression tests for the scripts above; run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.
 
-Each Cask carries `version`, per-platform `sha256` + `url` pointing at the corresponding `devantler-tech/ksail` GitHub release asset, a `livecheck` skipped as auto-generated-on-release, a `binary`/`app` stanza, and a `postflight` that strips the macOS quarantine xattr.
+Each Cask carries `version`, `sha256` + `url` pointing at its owning product's GitHub release asset (KSail or World at Ruin), a `livecheck` skipped as auto-generated-on-release, a `binary`/`app` stanza, and post-install handling that strips the macOS quarantine xattr. The KSail Casks select platform-specific assets; World at Ruin uses a universal macOS archive. Start human contributions with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Validation
 

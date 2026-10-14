@@ -27,7 +27,7 @@ jobs:
       contents: read # checkout
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit # brew audit --online fetches the release assets
       - name: 📥 Checkout
@@ -105,7 +105,7 @@ jobs:
       contents: read # pushes use the App token minted below, never the job token
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit # brew style is offline; audit matches the repo's other jobs
       - name: 🔑 Generate GitHub App Token
@@ -279,7 +279,7 @@ jobs:
       contents: read # checkout
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit # the test needs no network; audit matches the repo's other jobs
       - name: 📥 Checkout

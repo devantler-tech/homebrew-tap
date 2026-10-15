@@ -24,7 +24,7 @@ cask "ksail-desktop" do
     skip "Auto-generated on release."
   end
 
-  depends_on macos: :big_sur
+  depends_on :macos
 
   app "KSail.app"
   binary "#{appdir}/KSail.app/Contents/MacOS/ksail-desktop"

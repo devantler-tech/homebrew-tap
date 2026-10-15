@@ -16,7 +16,7 @@ cask "world-at-ruin" do
     skip "Auto-generated on release."
   end
 
-  depends_on macos: :big_sur
+  depends_on :macos
 
   app "World at Ruin.app"
 

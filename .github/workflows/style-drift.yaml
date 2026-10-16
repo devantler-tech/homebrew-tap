@@ -2,8 +2,8 @@
 name: Cask Style Drift
 
 # The pull-request style gate checks only the Casks a change touches (#1556), so a Cask can drift
-# out of `brew style` without any change to it: macos-latest ships Homebrew's bundled RuboCop, and a
-# newer runner image can add a cop an existing Cask does not satisfy. This checks every Cask on main
+# out of `brew style` without any change to it: each job updates Homebrew first, and a
+# new Homebrew release can add a cop an existing Cask does not satisfy. This checks every Cask on main
 # after each merge and daily, and keeps one issue open while any Cask fails.
 on:
   push:
@@ -37,6 +37,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false # read-only job; never pushes
+      - name: ⬆️ Update Homebrew
+        # Check against current Homebrew, like ci.yaml, not the image's bundled copy (#2039).
+        run: brew update --quiet
       - name: 🎨 brew style (every Cask)
         id: brew-style
         # The report job fails the run on drift, after recording it.
@@ -61,7 +64,7 @@ jobs:
         with:
           title: "A Cask on main is not brew style-clean"
           body: |
-            `brew style ./Casks/` failed on `main`. Pull requests only style-check the Casks they change, so this is either a new cop on the macOS runner image flagging a Cask nobody touched, or a Cask that reached `main` without passing the gate.
+            `brew style ./Casks/` failed on `main`. Pull requests only style-check the Casks they change, so this is either a new Homebrew cop flagging a Cask nobody touched, or a Cask that reached `main` without passing the gate.
 
             - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 

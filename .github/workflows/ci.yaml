@@ -34,6 +34,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false # read-only job; never pushes
+      - name: ⬆️ Update Homebrew
+        # The image's bundled Homebrew can be weeks old and `macos-latest` rolls out gradually, so
+        # without this the audit verdict depended on which image the job landed on (#2039). Every
+        # macOS job in this repo updates first, so audit and style judge with the same current rules.
+        run: brew update --quiet
       - name: 🧪 Self-test — the gate must reject a broken Cask
         # Regression guard: prove the audit gate actually blocks, not just that it
         # runs. Build a deliberately-broken Cask in a throwaway tap and assert
@@ -97,7 +102,7 @@ jobs:
     # drafts too (unlike audit-casks): style is offline, so a draft GoReleaser Cask PR is fixed
     # before its release asset even exists and the ready-flip audit sees a clean Cask.
     # Only the Casks the PR or merge group adds or modifies are fixed and gated, so a change that
-    # touches no Cask cannot fail on another Cask's style (a newer runner's cops can flag a Cask
+    # touches no Cask cannot fail on another Cask's style (a newer Homebrew's cops can flag a Cask
     # nobody changed, #1556). style-drift.yaml checks every Cask on main and reports that drift.
     # macOS runner for RuboCop-cop parity with audit-casks.
     runs-on: macos-latest
@@ -143,6 +148,9 @@ jobs:
         with:
           fetch-depth: 0 # the style scope needs the base/head merge base
           persist-credentials: false
+      - name: ⬆️ Update Homebrew
+        # Same as audit-casks: judge with current Homebrew, not the image's bundled copy (#2039).
+        run: brew update --quiet
       - name: 🧪 Self-test — the gate must reject a style-offending Cask
         # Regression guard mirroring audit-casks': prove `brew style` actually blocks. A Cask with
         # a known generated-template offense (mis-aligned continuation argument) must FAIL style;

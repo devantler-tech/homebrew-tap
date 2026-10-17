@@ -49,7 +49,9 @@ but its first run can download Homebrew's lint dependencies. Do not use a
 documentation change as an excuse to autocorrect generated files by hand.
 
 CI runs both script tests on drafts. Its style gate checks only Casks changed
-by the PR; the separate drift workflow checks all Casks on `main`. Full online
+by the PR; the separate drift workflow checks all Casks on `main`. A load gate,
+also run on drafts, reads the whole tap for every OS and architecture, because
+one Cask that fails to load anywhere breaks `brew tap` for everyone. Full online
 audit runs when a draft becomes ready, so that additional run must finish
 successfully before merge. An audit skipped on a draft does not prove the
 release assets passed. Never promote an automated `goreleaser/*` draft early:

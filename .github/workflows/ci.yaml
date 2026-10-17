@@ -278,6 +278,105 @@ jobs:
           fi
           brew style "${scope[@]:1}"
 
+  load-casks:
+    name: 📦 Load Casks on every platform
+    # `brew tap` loads every Cask for every OS and architecture, and one Cask that fails to load on
+    # any of them refuses the whole tap: a generated ksail Cask with no macOS-Intel `url` broke
+    # `brew tap devantler-tech/tap` on every Mac (devantler-tech/ksail#7034). audit-casks and
+    # style-casks judge only the runner's own platform, so this job reads the whole tap with every
+    # OS and architecture simulated. Loading is offline, so it runs on drafts too.
+    runs-on: macos-latest
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: 🔒 Harden runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit # loading is offline; audit matches the repo's other jobs
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job; never pushes
+      - name: ⬆️ Update Homebrew
+        # Same as audit-casks: judge with current Homebrew, not the image's bundled copy (#2039).
+        run: brew update --quiet
+      - name: 🧪 Self-test — the gate must reject a Cask that fails to load on one platform
+        # Regression guard mirroring audit-casks' and style-casks': prove `brew readall` actually
+        # blocks. A Cask with a download for every platform must load, and the same Cask with the
+        # macOS-Intel download removed must NOT — the exact break of devantler-tech/ksail#7034. The
+        # passing control shows the failure comes from the missing platform, not from a typo in
+        # the fixture. Offline and hermetic.
+        run: |
+          set -euo pipefail
+          # `brew readall` SKIPS a tap Homebrew does not trust and still exits 0, so a skip would
+          # read as a pass. Trust the tap explicitly, and fail on any skip notice.
+          load() {
+            local out status=0
+            out="$(brew readall --os=all --arch=all "$1" 2>&1)" || status=$?
+            printf '%s\n' "$out"
+            if printf '%s\n' "$out" | grep -q 'Skipping '; then
+              echo "::error::brew readall skipped $1 instead of loading it."
+              exit 1
+            fi
+            return "$status"
+          }
+          selftap="$(brew --repository)/Library/Taps/devantler-tech-selftest/homebrew-readall"
+          mkdir -p "$selftap/Casks"
+          cleanup() { rm -rf "$selftap"; }
+          trap cleanup EXIT
+          brew trust --tap devantler-tech-selftest/readall
+          write_cask() {
+            {
+              echo 'cask "readall-selftest" do'
+              echo '  version "0.0.0"'
+              echo '  sha256 "0000000000000000000000000000000000000000000000000000000000000000"'
+              echo ''
+              echo '  on_arm do'
+              echo '    url "https://example.invalid/readall-selftest-arm64.zip"'
+              echo '  end'
+              if [ "$1" = complete ]; then
+                echo '  on_intel do'
+                echo '    url "https://example.invalid/readall-selftest-amd64.zip"'
+                echo '  end'
+              fi
+              echo ''
+              echo '  name "readall selftest"'
+              echo '  desc "Cask fixture for the load gate"'
+              echo '  homepage "https://example.invalid/"'
+              echo ''
+              echo '  app "ReadallSelftest.app"'
+              echo 'end'
+            } > "$selftap/Casks/readall-selftest.rb"
+          }
+          write_cask complete
+          if ! load devantler-tech-selftest/readall; then
+            echo "::error::Self-test failed: a Cask with a download for every platform did not load — the fixture or the gate is broken."
+            exit 1
+          fi
+          write_cask arm-only
+          if load devantler-tech-selftest/readall; then
+            echo "::error::Self-test failed: a Cask with no Intel download loaded on every platform — the gate is not enforcing."
+            exit 1
+          fi
+          echo "Self-test OK: the complete Cask loaded and the Intel-less Cask was rejected."
+      - name: 📦 brew readall --os=all --arch=all (the whole tap)
+        # Expose this checkout to Homebrew as the real tap, as audit-casks does, and load every
+        # Cask the way `brew tap` would on every OS and architecture. Trusted explicitly, and a skip
+        # notice fails the step, for the reason the self-test gives.
+        run: |
+          set -euo pipefail
+          tap_dir="$(brew --repository)/Library/Taps/devantler-tech/homebrew-tap"
+          mkdir -p "$(dirname "$tap_dir")"
+          ln -sfn "$GITHUB_WORKSPACE" "$tap_dir"
+          brew trust --tap devantler-tech/tap
+          out="$(brew readall --os=all --arch=all devantler-tech/tap 2>&1)" || status=$?
+          printf '%s\n' "$out"
+          if printf '%s\n' "$out" | grep -q 'Skipping '; then
+            echo "::error::brew readall skipped devantler-tech/tap instead of loading it."
+            exit 1
+          fi
+          exit "${status:-0}"
+
   test-scripts:
     name: 🧪 Test scripts
     # Hermetic (no network, no Homebrew) regression tests for repository scripts (e.g. autocorrect-pr-casks.sh).
@@ -305,10 +404,10 @@ jobs:
     name: CI - Required Checks
     if: always()
     runs-on: ubuntu-latest
-    needs: [audit-casks, style-casks, test-scripts]
+    needs: [audit-casks, style-casks, load-casks, test-scripts]
     permissions: {}
     steps:
       - name: ✅ Aggregate job checks
         uses: devantler-tech/.github/actions/aggregate-job-checks@61693f6ef2740f113ecd2a4ae01840557abe44e8 # v7.12.3
         with:
-          job-results: ${{ needs.audit-casks.result }} ${{ needs.style-casks.result }} ${{ needs.test-scripts.result }}
+          job-results: ${{ needs.audit-casks.result }} ${{ needs.style-casks.result }} ${{ needs.load-casks.result }} ${{ needs.test-scripts.result }}

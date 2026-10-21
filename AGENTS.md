@@ -16,6 +16,7 @@
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.
 - `scripts/autocorrect-pr-casks.sh` — autocorrects brew style offenses on PR branches.
 - `scripts/changed-casks.sh` — lists the Casks a pull request or merge group adds or modifies, which is what the style gate checks.
+- `scripts/cask-version-order.sh` — refuses a pull request or merge group that moves a changed Cask to an older version than the branch it merges into, or a prerelease over the stable version it precedes; an unreadable version fails. CI runs it as `🔢 Cask version order`, part of the required-checks gate, so a retried older release run cannot downgrade a Cask.
 - `test/*.test.sh` — hermetic regression tests for the scripts above; run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.
 
 Each Cask carries `version`, `sha256` + `url` pointing at its owning product's GitHub release asset (KSail or World at Ruin), a `livecheck` skipped as auto-generated-on-release, a `binary`/`app` stanza, and post-install handling that strips the macOS quarantine xattr. The KSail Casks select platform-specific assets; World at Ruin uses a universal macOS archive. Start human contributions with [CONTRIBUTING.md](CONTRIBUTING.md).

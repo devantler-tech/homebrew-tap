@@ -400,14 +400,39 @@ jobs:
             bash "$test_script"
           done
 
+  cask-version-order:
+    name: 🔢 Cask version order
+    # A Cask may move forward or stay put, never back: a retried older release run must not replace a
+    # newer Cask (devantler-tech/ksail#7898). Compares each changed Cask with the branch it merges
+    # into; an unreadable version fails. Hermetic (git only, no network, no Homebrew). Drafts too:
+    # the evergreen release PRs open as drafts, and this needs no published asset.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: 🔒 Harden runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit # the check needs no network; audit matches the repo's other jobs
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job; never pushes
+          fetch-depth: 0 # the base and head commits and their merge base must all be present
+      - name: 🔢 Refuse a Cask downgrade
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: bash scripts/cask-version-order.sh "$BASE_SHA" "$HEAD_SHA"
+
   required-checks:
     name: CI - Required Checks
     if: always()
     runs-on: ubuntu-latest
-    needs: [audit-casks, style-casks, load-casks, test-scripts]
+    needs: [audit-casks, style-casks, load-casks, test-scripts, cask-version-order]
     permissions: {}
     steps:
       - name: ✅ Aggregate job checks
         uses: devantler-tech/.github/actions/aggregate-job-checks@68927b3801d388baf8243583def438d87d5cbece # v7.18.0
         with:
-          job-results: ${{ needs.audit-casks.result }} ${{ needs.style-casks.result }} ${{ needs.load-casks.result }} ${{ needs.test-scripts.result }}
+          job-results: ${{ needs.audit-casks.result }} ${{ needs.style-casks.result }} ${{ needs.load-casks.result }} ${{ needs.test-scripts.result }} ${{ needs.cask-version-order.result }}

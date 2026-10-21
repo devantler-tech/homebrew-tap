@@ -5,8 +5,8 @@
 #
 # Every Cask the change adds or modifies (the same scope as scripts/changed-casks.sh) is compared
 # with the same Cask at <base-sha>, the tip of the branch the change merges into. A Cask that does
-# not exist at <base-sha> is new and passes. Otherwise the head version must be at least the base
-# version:
+# not exist at <base-sha> is new and passes once its head version is readable. Otherwise the head
+# version must be at least the base version:
 #   - a higher or identical version passes;
 #   - a lower version fails;
 #   - a prerelease (a version with a `-suffix`) never replaces the stable version it precedes.
@@ -76,17 +76,17 @@ status=0
 checked=0
 while IFS= read -r cask; do
   checked=$((checked + 1))
+  if ! head_blob="$(git show "${head_sha}:${cask}")" || ! head_version="$(read_version "$head_blob")"; then
+    echo "BLOCKED: ${cask}: cannot read one plain version at the head" >&2
+    status=2
+    continue
+  fi
   if ! git cat-file -e "${base_sha}:${cask}" 2>/dev/null; then
-    echo "ok    ${cask}: new Cask"
+    echo "ok    ${cask}: new Cask at ${head_version}"
     continue
   fi
   if ! base_blob="$(git show "${base_sha}:${cask}")" || ! base_version="$(read_version "$base_blob")"; then
     echo "BLOCKED: ${cask}: cannot read one plain version at the base" >&2
-    status=2
-    continue
-  fi
-  if ! head_blob="$(git show "${head_sha}:${cask}")" || ! head_version="$(read_version "$head_blob")"; then
-    echo "BLOCKED: ${cask}: cannot read one plain version at the head" >&2
     status=2
     continue
   fi

@@ -60,6 +60,8 @@ expect equal-version 0 7.204.4 "$(cask_body 7.204.4)"
 expect wider-newer-version 0 7.204 "$(cask_body 7.204.1)"
 expect numeric-not-lexical 0 7.9.0 "$(cask_body 7.10.0)"
 expect new-cask 0 "" "$(cask_body 1.0.0)"
+expect new-cask-latest-version 2 "" $'cask "target" do\n  version :latest\nend\n'
+expect new-cask-missing-version 2 "" $'cask "target" do\n  sha256 "0"\nend\n'
 expect stable-after-its-prerelease 0 7.205.0-rc.1 "$(cask_body 7.205.0)"
 expect older-retry 1 7.204.4 "$(cask_body 7.204.1)"
 expect older-major 1 8.0.0 "$(cask_body 7.999.999)"

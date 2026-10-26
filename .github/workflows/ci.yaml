@@ -60,8 +60,19 @@ jobs:
             name "broken selftest"
           end
           RUBY
-          if brew audit --strict --cask "devantler-tech-selftest/selftest/broken-selftest"; then
+          # Homebrew refuses to load a Cask from a tap it does not trust, and that refusal (like a
+          # missing or unreadable fixture) also exits non-zero. So trust the tap, and pass only
+          # when the audit itself reports the fixture's known defect — never on any failure.
+          brew trust --tap devantler-tech-selftest/selftest
+          status=0
+          out="$(brew audit --strict --cask "devantler-tech-selftest/selftest/broken-selftest" 2>&1)" || status=$?
+          printf '%s\n' "$out"
+          if [ "$status" -eq 0 ]; then
             echo "::error::Self-test failed: a deliberately-broken Cask passed audit — the gate is not enforcing."
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q 'sha256 string must be of 64 hexadecimal characters'; then
+            echo "::error::Self-test failed: brew audit failed without reporting the fixture's invalid sha256, so it may never have judged the fixture."
             exit 1
           fi
           echo "Self-test OK: the broken Cask was correctly rejected by brew audit."
@@ -83,6 +94,9 @@ jobs:
           tap_dir="$(brew --repository)/Library/Taps/devantler-tech/homebrew-tap"
           mkdir -p "$(dirname "$tap_dir")"
           ln -sfn "$GITHUB_WORKSPACE" "$tap_dir"
+          # Homebrew refuses to load a Cask from an untrusted tap, which would fail every
+          # audit before it looks at the Cask. Trust the tap, as load-casks does.
+          brew trust --tap devantler-tech/tap
           status=0
           for cask in Casks/*.rb; do
             name="$(basename "$cask" .rb)"

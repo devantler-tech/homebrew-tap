@@ -448,7 +448,7 @@ jobs:
       actions: read
     steps:
       - name: ✅ Aggregate job checks
-        uses: devantler-tech/.github/actions/aggregate-job-checks@1a0eb6f18b88a7816b91cbf692b8ad8ea9a08123 # v20.1.17
+        uses: devantler-tech/.github/actions/aggregate-job-checks@0042076bbe7b0ae75a5bc5584333deecff9c5af5 # v20.1.19
         with:
           check-workflow-startup: "true"
           job-results: ${{ needs.audit-casks.result }} ${{ needs.style-casks.result }} ${{ needs.load-casks.result }} ${{ needs.test-scripts.result }} ${{ needs.cask-version-order.result }}

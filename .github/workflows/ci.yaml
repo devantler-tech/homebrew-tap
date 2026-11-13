@@ -27,7 +27,7 @@ jobs:
       contents: read # checkout
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit # brew audit --online fetches the release assets
       - name: 📥 Checkout
@@ -124,7 +124,7 @@ jobs:
       contents: read # pushes use the App token minted below, never the job token
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit # brew style is offline; audit matches the repo's other jobs
       - name: 🔑 Generate GitHub App Token
@@ -304,7 +304,7 @@ jobs:
       contents: read # checkout
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit # loading is offline; audit matches the repo's other jobs
       - name: 📥 Checkout
@@ -400,7 +400,7 @@ jobs:
       contents: read # checkout
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit # the test needs no network; audit matches the repo's other jobs
       - name: 📥 Checkout
@@ -425,7 +425,7 @@ jobs:
       contents: read # checkout
     steps:
       - name: 🔒 Harden runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit # the check needs no network; audit matches the repo's other jobs
       - name: 📥 Checkout

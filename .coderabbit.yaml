@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 #
 # This repository is an auto-generated Homebrew tap: its casks are produced and
-# bumped by goreleaser/Renovate, not hand-authored, so automated code review adds
+# bumped by the scheduled bump-casks workflow, not hand-authored, so automated code review adds
 # no value. Disable CodeRabbit's automatic PR reviews here, and also suppress its
 # review-status (progress/summary) posts to keep the bot fully quiet on this tap.
 reviews:

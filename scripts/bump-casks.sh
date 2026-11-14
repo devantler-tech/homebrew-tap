@@ -18,6 +18,8 @@ set -euo pipefail
 }
 repo=$1 tap=$2
 tap_dir="$(brew --repository "$tap")"
+# shellcheck disable=SC2016 # $id is a GraphQL variable, not a shell one.
+arm_auto_merge='mutation($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) { clientMutationId } }'
 
 livecheck="$(brew livecheck --tap "$tap" --newer-only --json --quiet)"
 jq -e 'type == "array"' <<<"$livecheck" >/dev/null || {
@@ -68,6 +70,15 @@ while IFS=$'\t' read -r cask version; do
       "Updates the \`$cask\` Cask to $version, its latest GitHub release, with \`brew bump-cask-pr\`." \
       "Opened by the scheduled [bump-casks](https://github.com/$repo/blob/main/.github/workflows/bump-casks.yaml) workflow."
   )"
+  # Arm auto-merge so the tap's required checks alone gate the merge, as the product
+  # pipelines did. A PR that is never armed silently falls behind, so that is a failure.
+  # GraphQL off the node id, as the world-at-ruin cask job did, so no `gh pr merge` scope is needed.
+  node="$(gh api "repos/$repo/pulls?head=${repo%%/*}:$branch&state=open" --jq '.[0].node_id // empty')" || node=""
+  if [ -z "$node" ] || ! gh api graphql --silent -f id="$node" \
+    -f query="$arm_auto_merge"; then
+    echo "::error::could not arm auto-merge for $branch" >&2
+    status=1
+  fi
 done < <(jq -r '.[] | select(.version.outdated == true) | [.cask, .version.latest] | @tsv' <<<"$livecheck")
 
 exit "$status"

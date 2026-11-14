@@ -15,7 +15,7 @@
 - `.github/workflows/bump-casks.yaml` — hourly, runs `brew livecheck` on the tap and opens one PR per outdated Cask through `scripts/bump-casks.sh`, with the App token so tap CI runs.
 - `.github/workflows/style-drift.yaml` — runs `brew style` on every Cask on `main` after each merge and daily, and keeps one issue open while any Cask fails.
 - `.github/dependabot.yaml` — daily `github-actions` dependency updates.
-- `scripts/bump-casks.sh` — bumps each outdated Cask with `brew bump-cask-pr --write-only`, commits it through the contents API (GitHub-signed, Conventional-Commit subject) on a `bump-<cask>-<version>` branch and opens the PR. A Cask livecheck cannot resolve fails the run.
+- `scripts/bump-casks.sh` — bumps each outdated Cask with `brew bump-cask-pr --write-only`, commits it through the contents API (GitHub-signed, Conventional-Commit subject) on a `bump-<cask>-<version>` branch, opens the PR and arms its auto-merge, so the tap's required checks alone gate the merge. A Cask livecheck cannot resolve, or a PR it cannot arm, fails the run.
 - `scripts/changed-casks.sh` — lists the Casks a pull request or merge group adds or modifies, which is what the style gate checks.
 - `scripts/cask-version-order.sh` — refuses a pull request or merge group that moves a changed Cask to an older version than the branch it merges into, or a prerelease over the stable version it precedes; an unreadable version fails. CI runs it as `🔢 Cask version order`, part of the required-checks gate, so a retried older release run cannot downgrade a Cask.
 - `test/*.test.sh` — hermetic regression tests for the scripts above; run on Linux by the `ci.yaml` `🧪 Test scripts` job on every PR.

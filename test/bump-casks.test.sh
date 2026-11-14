@@ -41,6 +41,8 @@ case "\$*" in
   "api repos/o/r/branches/"*) [ "\${GH_BRANCH_EXISTS:-0}" = 1 ] ;;
   "api repos/o/r/git/ref/heads/main --jq .object.sha") echo 1111111111111111111111111111111111111111 ;;
   "api repos/o/r/contents/"*"--jq .sha") echo 2222222222222222222222222222222222222222 ;;
+  "api repos/o/r/pulls?head=o:"*) echo PR_kwNODE ;;
+  "api graphql "*) [ "\${GH_MERGE_EXIT:-0}" = 0 ] ;;
   *) exit 0 ;;
 esac
 STUB
@@ -74,6 +76,7 @@ check "it branches from main" 'grep -q "^gh api -X POST repos/o/r/git/refs -f re
 check "it commits the bumped cask with a conventional subject" \
   'grep -qF "gh api -X PUT repos/o/r/contents/Casks/ksail.rb -f branch=bump-ksail-2.0.0 -f message=chore(cask): update ksail to v2.0.0 -f content=$expected -f sha=2222222222222222222222222222222222222222" "$root/calls"'
 check "it opens the pull request" 'grep -q "^gh pr create --repo o/r --base main --head bump-ksail-2.0.0 --title chore(cask): update ksail to v2.0.0" "$root/calls"'
+check "it arms auto-merge on the opened pull request" 'grep -q "^gh api repos/o/r/pulls?head=o:bump-ksail-2.0.0&state=open" "$root/calls" && grep -q "^gh api graphql --silent -f id=PR_kwNODE -f query=mutation.*enablePullRequestAutoMerge.*SQUASH" "$root/calls"'
 check "it leaves the tap checkout clean" 'git -C "$root/tap" diff --quiet'
 
 root="$(new_fixture existing "$outdated")"
@@ -99,5 +102,9 @@ check "an unexpected version is refused" '[ "$status" = 1 ] && ! grep -q "bump-c
 root="$(new_fixture bumpfail "$outdated")"
 status=0; run "$root" BREW_BUMP_EXIT=1 || status=$?
 check "a failed bump fails without touching GitHub" '[ "$status" = 1 ] && ! grep -q "^gh api -X\|pr create" "$root/calls"'
+
+root="$(new_fixture armfail "$outdated")"
+status=0; run "$root" GH_MERGE_EXIT=1 || status=$?
+check "an unarmed pull request fails the run" '[ "$status" = 1 ] && grep -q "could not arm auto-merge" "$root/out"'
 
 exit "$fail"

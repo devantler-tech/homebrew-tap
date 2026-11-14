@@ -40,8 +40,9 @@ printf 'gh %s\n' "\$*" >>"$root/calls"
 case "\$*" in
   "api repos/o/r/branches/"*) [ "\${GH_BRANCH_EXISTS:-0}" = 1 ] ;;
   "api repos/o/r/git/ref/heads/main --jq .object.sha") echo 1111111111111111111111111111111111111111 ;;
-  "api repos/o/r/contents/"*"--jq .sha") echo 2222222222222222222222222222222222222222 ;;
-  "api repos/o/r/pulls?head=o:"*) echo PR_kwNODE ;;
+  "api repos/o/r/contents/"*"--jq .sha") echo "\${GH_BLOB:-2222222222222222222222222222222222222222}" ;;
+  "api repos/o/r/pulls?head=o:"*"&state=all "*) [ "\${GH_PRS_EXIT:-0}" = 0 ] || exit 1; echo "\${GH_PRS:-[]}" ;;
+  "api repos/o/r/pulls?head=o:"*"&state=open "*) echo PR_kwNODE ;;
   "api graphql "*) [ "\${GH_MERGE_EXIT:-0}" = 0 ] ;;
   *) exit 0 ;;
 esac
@@ -73,15 +74,34 @@ expected="$(printf 'cask "ksail" do\n  version "2.0.0"\nend\n' | base64 | tr -d 
 check "an outdated cask exits 0" '[ "$status" = 0 ]'
 check "it bumps through bump-cask-pr" 'grep -qx "brew bump-cask-pr --write-only --version 2.0.0 devantler-tech/tap/ksail" "$root/calls"'
 check "it branches from main" 'grep -q "^gh api -X POST repos/o/r/git/refs -f ref=refs/heads/bump-ksail-2.0.0 -f sha=1111111111111111111111111111111111111111" "$root/calls"'
+check "it reads the branch copy of the cask" 'grep -qx "gh api repos/o/r/contents/Casks/ksail.rb?ref=refs/heads/bump-ksail-2.0.0 --jq .sha" "$root/calls"'
 check "it commits the bumped cask with a conventional subject" \
   'grep -qF "gh api -X PUT repos/o/r/contents/Casks/ksail.rb -f branch=bump-ksail-2.0.0 -f message=chore(cask): update ksail to v2.0.0 -f content=$expected -f sha=2222222222222222222222222222222222222222" "$root/calls"'
 check "it opens the pull request" 'grep -q "^gh pr create --repo o/r --base main --head bump-ksail-2.0.0 --title chore(cask): update ksail to v2.0.0" "$root/calls"'
 check "it arms auto-merge on the opened pull request" 'grep -q "^gh api repos/o/r/pulls?head=o:bump-ksail-2.0.0&state=open" "$root/calls" && grep -q "^gh api graphql --silent -f id=PR_kwNODE -f query=mutation.*enablePullRequestAutoMerge.*SQUASH" "$root/calls"'
 check "it leaves the tap checkout clean" 'git -C "$root/tap" diff --quiet'
 
-root="$(new_fixture existing "$outdated")"
+want="$(printf 'cask "ksail" do\n  version "2.0.0"\nend\n' | git hash-object --stdin)"
+
+root="$(new_fixture resume "$outdated")"
+status=0; run "$root" GH_BRANCH_EXISTS=1 GH_BLOB="$want" || status=$?
+check "a branch left without a pull request is resumed" '[ "$status" = 0 ] && ! grep -q "^gh api -X" "$root/calls" && grep -q "^gh pr create .*--head bump-ksail-2.0.0" "$root/calls" && grep -q "^gh api graphql" "$root/calls"'
+
+root="$(new_fixture stale "$outdated")"
 status=0; run "$root" GH_BRANCH_EXISTS=1 || status=$?
-check "an existing bump branch is skipped" '[ "$status" = 0 ] && ! grep -q "bump-cask-pr\|pr create" "$root/calls"'
+check "a branch without the bump gets the commit, not a second branch" '[ "$status" = 0 ] && ! grep -q "git/refs" "$root/calls" && grep -q "^gh api -X PUT repos/o/r/contents/Casks/ksail.rb -f branch=bump-ksail-2.0.0" "$root/calls"'
+
+root="$(new_fixture open "$outdated")"
+status=0; run "$root" GH_BRANCH_EXISTS=1 GH_BLOB="$want" GH_PRS='[{"state":"open","merged_at":null}]' || status=$?
+check "an open pull request is re-armed, not reopened" '[ "$status" = 0 ] && ! grep -q "pr create\|^gh api -X" "$root/calls" && grep -q "^gh api graphql" "$root/calls"'
+
+root="$(new_fixture closed "$outdated")"
+status=0; run "$root" GH_PRS='[{"state":"closed","merged_at":null}]' || status=$?
+check "a version whose pull request was closed is skipped" '[ "$status" = 0 ] && ! grep -q "bump-cask-pr\|pr create\|^gh api -X\|graphql" "$root/calls"'
+
+root="$(new_fixture prsfail "$outdated")"
+status=0; run "$root" GH_PRS_EXIT=1 || status=$?
+check "an unreadable pull request list fails without bumping" '[ "$status" = 1 ] && ! grep -q "bump-cask-pr" "$root/calls"'
 
 root="$(new_fixture current '[]')"
 status=0; run "$root" || status=$?

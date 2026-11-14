@@ -2,12 +2,9 @@
 name: CI
 
 on:
-  # Audit Cask-bump PRs on the draft→ready flip, not at draft-open. GoReleaser opens the release
-  # Cask PRs (`goreleaser/*`) as drafts ~37 min before the GitHub release publishes (it stays a
-  # draft until every release job succeeds), and the ksail `homebrew` job marks them ready only
-  # AFTER publish. So `ready_for_review` here — plus the `audit-casks` draft-skip below — lets
-  # `brew audit --online` resolve a live asset on the first try: no pre-publish 404, no manual
-  # re-audit. Same triggers and draft handling as the org `enable-auto-merge.yaml`.
+  # `ready_for_review` re-runs the online audit when a draft is promoted; `audit-casks` skips
+  # drafts. Bump PRs from bump-casks.yaml point at an already published release and open ready.
+  # Same triggers and draft handling as the org `enable-auto-merge.yaml`.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
@@ -108,56 +105,21 @@ jobs:
 
   style-casks:
     name: 🎨 Style Casks
-    # `brew style` gate (#847). The GoReleaser-generated Casks are NOT style-clean as generated
-    # (stanza order, argument alignment, blank lines) and upstream declined to change the template
-    # (goreleaser/goreleaser#6678: "our casks don't need to pass brew style"), so this job first
-    # AUTOCORRECTS with `brew style --fix` — every known generated offense is autocorrectable — and
-    # pushes the correction back to the PR branch, then gates on a clean `brew style`. Runs on
-    # drafts too (unlike audit-casks): style is offline, so a draft GoReleaser Cask PR is fixed
-    # before its release asset even exists and the ready-flip audit sees a clean Cask.
-    # Only the Casks the PR or merge group adds or modifies are fixed and gated, so a change that
-    # touches no Cask cannot fail on another Cask's style (a newer Homebrew's cops can flag a Cask
-    # nobody changed, #1556). style-drift.yaml checks every Cask on main and reports that drift.
-    # macOS runner for RuboCop-cop parity with audit-casks.
+    # `brew style` gate (#847). Check-only: the scheduled bump (bump-casks.yaml) is the only
+    # writer of Cask versions, and `brew bump-cask-pr` runs `brew style --fix` before it opens a
+    # pull request, so nothing here pushes. Only the Casks the PR or merge group adds or modifies
+    # are gated, so a change that touches no Cask cannot fail on another Cask's style (a newer
+    # Homebrew's cops can flag a Cask nobody changed, #1556). style-drift.yaml checks every Cask on
+    # main and reports that drift. macOS runner for RuboCop-cop parity with audit-casks.
     runs-on: macos-latest
     permissions:
-      contents: read # pushes use the App token minted below, never the job token
+      contents: read
     steps:
       - name: 🔒 Harden runner
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit # brew style is offline; audit matches the repo's other jobs
-      - name: 🔑 Generate GitHub App Token
-        # Only same-repo PR events push the autocorrect commit (fork PRs have no secrets and no
-        # push rights; merge_group refs are immutable). An App token (not GITHUB_TOKEN) so the
-        # pushed commit retriggers CI — a GITHUB_TOKEN push leaves the new head SHA with no runs
-        # and the PR stuck on "expected" required checks.
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        id: generate-token
-        with:
-          client-id: ${{ vars.APP_CLIENT_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] - GitHub App token generation, no environment scoping available for app installations
-          # Scope the token to this repo + contents:write only (zizmor github-app rule): the
-          # autocorrect push touches exact manifest Cask paths, never workflow files.
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-      # Two guarded checkouts instead of one parameterised `ref: github.head_ref` (CodeQL
-      # actions/untrusted-checkout): only a SAME-REPO PR — whose head only repo writers can push —
-      # checks out the head branch (pushable, App token); fork PRs and merge_group get the default
-      # read-only checkout of the event's own ref, so an untrusted head is never checked out.
-      - name: 📥 Checkout (same-repo PR — head branch, pushable)
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Check out the event's immutable head, not the mutable branch name. The later leased push
-          # targets github.head_ref only if the remote still equals this exact SHA.
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0 # immutable three-dot base/head scope needs complete merge-base history
-          persist-credentials: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-          token: ${{ steps.generate-token.outputs.token }}
-      - name: 📥 Checkout (fork PR / merge_group — read-only)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+      - name: 📥 Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # the style scope needs the base/head merge base
@@ -192,98 +154,16 @@ jobs:
             exit 1
           fi
           echo "Self-test OK: the style-offending Cask was correctly rejected."
-      - name: 🎨 brew style --fix (autocorrect generated Casks)
-        # A pushable same-repo PR may modify only the non-deleted Casks that PR already changes.
-        # Fork/merge-group refs remain check-only: locally fix the Casks the change touches, then
-        # the gate below deliberately fails if that produced a diff which cannot be pushed.
-        id: fix
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          EVENT_NAME: ${{ github.event_name }}
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          TARGET_MANIFEST: ${{ runner.temp }}/cask-autocorrect-targets
-          SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
-          SCOPE_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
-          SCOPE_MANIFEST: ${{ runner.temp }}/cask-style-scope
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then
-            bash scripts/autocorrect-pr-casks.sh "$BASE_SHA" "$EXPECTED_HEAD" "$GITHUB_OUTPUT" "$TARGET_MANIFEST"
-          else
-            bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"
-            # Bash 3.2 (the macOS runner default) treats an empty array as unset under `set -u`, so
-            # index 0 holds an inert sentinel and only the slice from index 1 is used.
-            scope=("")
-            while IFS= read -r cask; do scope+=("$cask"); done <"$SCOPE_MANIFEST"
-            if [ "${#scope[@]}" -gt 1 ]; then
-              brew style --fix "${scope[@]:1}" || true
-            fi
-            if git diff --quiet -- Casks/; then
-              echo "dirty=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "dirty=true" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-      - name: 📤 Commit and push autocorrections (same-repo PR branch)
-        id: push
-        if: steps.fix.outputs.dirty == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          HEAD_REF: ${{ github.head_ref }}
-          TARGET_MANIFEST: ${{ runner.temp }}/cask-autocorrect-targets
-        run: |
-          set -euo pipefail
-          if [[ ! "$EXPECTED_HEAD" =~ ^[0-9a-f]{40}$ ]] \
-            || ! git check-ref-format "refs/heads/$HEAD_REF" >/dev/null; then
-            echo "::error::Invalid event head or pull-request branch"
-            exit 1
-          fi
-          if [ "$(git rev-parse HEAD)" != "$EXPECTED_HEAD" ] || [ ! -s "$TARGET_MANIFEST" ]; then
-            echo "::error::Checkout or target manifest is not bound to the event head"
-            exit 1
-          fi
-
-          # Stage only the helper's post-guard manifest. The sentinel keeps Bash 3.2 nounset-safe.
-          targets=("")
-          while IFS= read -r target; do
-            if [[ ! "$target" =~ ^Casks/[A-Za-z0-9][A-Za-z0-9._+-]*\.rb$ ]] \
-              || [ ! -f "$target" ]; then
-              echo "::error::Unsafe target manifest path: $target"
-              exit 1
-            fi
-            git add -- "$target"
-            targets+=("$target")
-          done <"$TARGET_MANIFEST"
-          if [ "${#targets[@]}" -le 1 ] || git diff --cached --quiet -- "${targets[@]:1}"; then
-            echo "::error::Target manifest produced no staged Cask correction"
-            exit 1
-          fi
-
-          git config user.name generator-bot
-          git config user.email generator-bot@users.noreply.github.com
-          git commit -m "style: autocorrect Casks (brew style --fix)" -- "${targets[@]:1}"
-
-          # Exact compare-and-swap: a branch reset or sibling push after checkout rejects this push,
-          # even when the stale local commit would otherwise be a valid fast-forward.
-          git push --force-with-lease="refs/heads/$HEAD_REF:$EXPECTED_HEAD" origin "HEAD:refs/heads/$HEAD_REF"
       - name: 🎨 brew style (gate)
-        # A dirty tree this run could NOT push back (merge_group / fork PR) must fail — passing on
-        # the locally-fixed tree would greenlight a style-dirty head SHA. When the autocorrect WAS
-        # pushed, the gate asserts the fixed tree and the pushed SHA re-runs the whole job cleanly.
         env:
-          DIRTY: ${{ steps.fix.outputs.dirty }}
-          PUSHED: ${{ steps.push.outcome == 'success' }}
           SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           SCOPE_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
           SCOPE_MANIFEST: ${{ runner.temp }}/cask-style-scope
         run: |
           set -euo pipefail
-          if [ "$DIRTY" = "true" ] && [ "$PUSHED" != "true" ]; then
-            echo "::error::The changed Casks are not brew style-clean and this run cannot push the autocorrection (merge_group or fork PR). Run 'brew style --fix' on them and commit."
-            exit 1
-          fi
           bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"
+          # Bash 3.2 (the macOS runner default) treats an empty array as unset under `set -u`, so
+          # index 0 holds an inert sentinel and only the slice from index 1 is used.
           scope=("")
           while IFS= read -r cask; do scope+=("$cask"); done <"$SCOPE_MANIFEST"
           if [ "${#scope[@]}" -le 1 ]; then
@@ -393,7 +273,7 @@ jobs:
 
   test-scripts:
     name: 🧪 Test scripts
-    # Hermetic (no network, no Homebrew) regression tests for repository scripts (e.g. autocorrect-pr-casks.sh).
+    # Hermetic (no network, no Homebrew) regression tests for repository scripts (e.g. bump-casks.sh).
     # Runs on Linux on every PR.
     runs-on: ubuntu-latest
     permissions:

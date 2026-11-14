@@ -21,13 +21,18 @@ tap_dir="$(brew --repository "$tap")"
 # shellcheck disable=SC2016 # $id is a GraphQL variable, not a shell one.
 arm_auto_merge='mutation($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) { clientMutationId } }'
 
-livecheck="$(brew livecheck --tap "$tap" --newer-only --json --quiet)"
+status=0
+# No --quiet: with it, Homebrew drops a Cask whose check errors from the JSON instead of
+# reporting it. Homebrew also exits non-zero then, which must not hide the other Casks.
+if ! livecheck="$(brew livecheck --tap "$tap" --newer-only --json)"; then
+  echo "::error::brew livecheck reported a failure" >&2
+  status=1
+fi
 jq -e 'type == "array"' <<<"$livecheck" >/dev/null || {
   echo "::error::brew livecheck did not return a JSON array" >&2
   exit 1
 }
 
-status=0
 # A Cask livecheck could not resolve is a failure, never "up to date".
 while IFS= read -r line; do
   [ -n "$line" ] || continue
@@ -70,7 +75,9 @@ while IFS=$'\t' read -r cask version; do
   git -C "$tap_dir" checkout -- "$path"
 
   if ! gh api "repos/$repo/branches/$branch" --silent >/dev/null 2>&1; then
-    base="$(gh api "repos/$repo/git/ref/heads/main" --jq .object.sha)"
+    # Branch from the revision the bump was generated from, not whatever main is now, so a
+    # change that landed on main meanwhile is never overwritten by this commit.
+    base="$(git -C "$tap_dir" rev-parse HEAD)"
     gh api -X POST "repos/$repo/git/refs" -f ref="refs/heads/$branch" -f sha="$base" --silent
   fi
   blob="$(gh api "repos/$repo/contents/$path?ref=refs/heads/$branch" --jq .sha)"

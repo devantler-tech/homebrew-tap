@@ -7,10 +7,10 @@ sensitive vulnerabilities through this repository's private
 [Report a vulnerability](https://github.com/devantler-tech/homebrew-tap/security/advisories/new)
 form, not a public issue or PR.
 
-The Casks are **generated** by product releases. Do not hand-edit versions,
-URLs, checksums or generated stanzas. Changes to their content belong in the
-owning product's generator: KSail for its two Casks, World at Ruin for its game.
-This repository owns the human guides, tap CI and packaging helper tests.
+This repository owns the Casks. The scheduled `bump-casks.yaml` workflow updates
+their versions and checksums from each product's latest GitHub release with
+`brew bump-cask-pr`, so do not hand-edit versions or checksums. Other Cask
+changes, the human guides, tap CI and helper tests are ordinary pull requests.
 
 ## Make a first documentation change
 
@@ -31,13 +31,13 @@ Make a small wording improvement in `README.md` without changing Casks. Preview
 the Markdown, then run from the root:
 
 ```sh
-bash test/autocorrect-pr-casks.test.sh
+bash test/bump-casks.test.sh
 bash test/changed-casks.test.sh
 git diff --check
 ```
 
 Both tests must exit 0 and report that all cases passed; whitespace validation
-must exit 0. Their simulated autocorrector never changes the real Casks. This
+must exit 0. Their stubbed `brew` and `gh` never touch real Casks or GitHub. This
 does not install packages, validate download artifacts or replace native CI.
 
 ## Packaging and native validation
@@ -46,7 +46,7 @@ Read [AGENTS.md validation](AGENTS.md#validation) for the additional local Cask
 checks. They need Homebrew on a compatible platform; online audit also needs
 network access to public release metadata. `brew style` is a read-only check,
 but its first run can download Homebrew's lint dependencies. Do not use a
-documentation change as an excuse to autocorrect generated files by hand.
+documentation change to hand-edit Cask versions.
 
 CI runs both script tests on drafts. Its style gate checks only Casks changed
 by the PR; the separate drift workflow checks all Casks on `main`. A load gate,
@@ -54,8 +54,9 @@ also run on drafts, reads the whole tap for every OS and architecture, because
 one Cask that fails to load anywhere breaks `brew tap` for everyone. Full online
 audit runs when a draft becomes ready, so that additional run must finish
 successfully before merge. An audit skipped on a draft does not prove the
-release assets passed. Never promote an automated `goreleaser/*` draft early:
-the owning release pipeline must publish its assets and lift that gate.
+release assets passed. An automated `bump-<cask>-<version>`
+pull request points at an already published release, so it follows the normal
+gates.
 
 ## Submit your change
 

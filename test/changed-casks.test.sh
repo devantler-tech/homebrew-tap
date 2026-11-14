@@ -171,19 +171,19 @@ assert_workflow_contract() {
   local ci drift style_block
   ci="$here/../.github/workflows/ci.yaml"
   drift="$here/../.github/workflows/style-drift.yaml"
-  style_block="$(sed -n '/- name: 📥 Checkout (fork PR/,/^  test-scripts:/p' "$ci")"
+  style_block="$(sed -n '/^  style-casks:/,/^  test-scripts:/p' "$ci")"
 
   # Literal GitHub/shell expressions are the workflow contract, not values for this test to expand.
   # shellcheck disable=SC2016
   if ! grep -Fq 'fetch-depth: 0' <<<"$style_block"; then
-    echo "FAIL: the read-only checkout does not fetch the history the scope needs"
+    echo "FAIL: the style checkout does not fetch the history the scope needs"
     fail=1
   elif ! grep -Fq 'SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}' <<<"$style_block" \
     || ! grep -Fq 'SCOPE_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}' <<<"$style_block"; then
     echo "FAIL: the style scope is not bound to the event's base and head"
     fail=1
-  elif [ "$(grep -Fc 'bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"' <<<"$style_block")" -ne 2 ]; then
-    echo "FAIL: the check-only fix and the gate do not both use the change's scope"
+  elif [ "$(grep -Fc 'bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"' <<<"$style_block")" -ne 1 ]; then
+    echo "FAIL: the style gate does not use the change's scope"
     fail=1
   elif grep -Fq 'brew style --fix ./Casks/' <<<"$style_block" \
     || grep -Eq 'brew style \./Casks/?$' <<<"$style_block"; then

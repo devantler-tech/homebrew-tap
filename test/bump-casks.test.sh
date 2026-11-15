@@ -30,7 +30,9 @@ case "\$1" in
   livecheck) cat "$root/livecheck.json"; exit "\${BREW_LIVECHECK_EXIT:-0}" ;;
   bump-cask-pr)
     [ "\${BREW_BUMP_EXIT:-0}" = 0 ] || exit "\$BREW_BUMP_EXIT"
-    sed -i.bak 's/1.0.0/2.0.0/' "$root/tap/Casks/ksail.rb" && rm -f "$root/tap/Casks/ksail.rb.bak" ;;
+    cask="\${@: -1}"; cask="\${cask##*/}"
+    [ "\${BREW_FAIL_CASK:-}" != "\$cask" ] || exit 1
+    sed -i.bak 's/1.0.0/2.0.0/' "$root/tap/Casks/\$cask.rb" && rm -f "$root/tap/Casks/\$cask.rb.bak" ;;
   *) echo "unexpected brew call: \$*" >&2; exit 9 ;;
 esac
 STUB
@@ -39,9 +41,26 @@ STUB
 printf 'gh %s\n' "\$*" >>"$root/calls"
 case "\$*" in
   "api repos/o/r/branches/"*) [ "\${GH_BRANCH_EXISTS:-0}" = 1 ] ;;
-  "api repos/o/r/contents/"*"--jq .sha") echo "\${GH_BLOB:-2222222222222222222222222222222222222222}" ;;
+  "api repos/o/r/contents/"*"--jq .sha")
+    path="\${2#repos/o/r/contents/}"; path="\${path%%\?*}"
+    if [ -f "$root/commit.json" ]; then
+      jq -jr --arg path "\$path" '.variables.input.fileChanges.additions[] | select(.path == \$path) | .contents | @base64d' "$root/commit.json" | git hash-object --stdin
+    elif [ -f "$root/tap/Casks/ksail-desktop.rb" ]; then
+      if [ "\${GH_ADAPTED:-0}" = 1 ]; then
+        echo 4444444444444444444444444444444444444444
+      else
+        git -C "$root/tap" rev-parse "HEAD:\$path"
+      fi
+    else
+      echo "\${GH_BLOB:-2222222222222222222222222222222222222222}"
+    fi ;;
+  "api repos/o/r/git/ref/heads/"*) echo 3333333333333333333333333333333333333333 ;;
+  "api repos/o/r/pulls?head=o:bump-ksail-desktop-"*"&state=all "*) echo "\${GH_DESKTOP_PRS:-[]}" ;;
   "api repos/o/r/pulls?head=o:"*"&state=all "*) [ "\${GH_PRS_EXIT:-0}" = 0 ] || exit 1; echo "\${GH_PRS:-[]}" ;;
   "api repos/o/r/pulls?head=o:"*"&state=open "*) echo PR_kwNODE ;;
+  "api graphql --input -"*)
+    cat >"$root/commit.json"
+    [ "\${GH_COMMIT_EXIT:-0}" = 0 ] ;;
   "api graphql "*) [ "\${GH_MERGE_EXIT:-0}" = 0 ] ;;
   *) exit 0 ;;
 esac
@@ -130,5 +149,74 @@ check "an unarmed pull request fails the run" '[ "$status" = 1 ] && grep -q "cou
 root="$(new_fixture partial '[{"cask":"other","status":"error","messages":["Unable to get versions"]},{"cask":"ksail","version":{"current":"1.0.0","latest":"2.0.0","outdated":true}}]')"
 status=0; run "$root" BREW_LIVECHECK_EXIT=1 || status=$?
 check "a failing livecheck still bumps the other Casks and fails the run" '[ "$status" = 1 ] && grep -q "livecheck failed for other" "$root/out" && grep -q "^gh pr create" "$root/calls"'
+
+pair='[{"cask":"ksail","version":{"current":"1.0.0","latest":"2.0.0","outdated":true}},{"cask":"ksail-desktop","version":{"current":"1.0.0","latest":"2.0.0","outdated":true}},{"cask":"world-at-ruin","version":{"current":"1.0.0","latest":"1.0.0","outdated":false}}]'
+
+pair_fixture() {
+  local root
+  root="$(new_fixture "$1" "$2")"
+  printf 'cask "ksail-desktop" do\n  version "1.0.0"\nend\n' >"$root/tap/Casks/ksail-desktop.rb"
+  printf 'cask "world-at-ruin" do\n  version "1.0.0"\nend\n' >"$root/tap/Casks/world-at-ruin.rb"
+  git -C "$root/tap" add Casks/ksail-desktop.rb Casks/world-at-ruin.rb
+  git -C "$root/tap" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m siblings
+  printf '%s' "$root"
+}
+
+root="$(pair_fixture pair "$pair")"
+status=0; run "$root" || status=$?
+check "one shared release opens one PR with an atomic pair commit" \
+  '[ "$status" = 0 ] && [ "$(grep -c "^gh pr create " "$root/calls")" = 1 ] && jq -e '\''[.variables.input.fileChanges.additions[].path] | sort == ["Casks/ksail-desktop.rb", "Casks/ksail.rb"]'\'' "$root/commit.json" >/dev/null'
+check "the pair retains Homebrew output and leaves the unrelated cask unchanged" \
+  'jq -e '\''all(.variables.input.fileChanges.additions[]; (.contents | @base64d | contains("version \"2.0.0\"")))'\'' "$root/commit.json" >/dev/null && ! grep -q "bump-cask-pr.*world-at-ruin" "$root/calls" && git -C "$root/tap" diff --quiet'
+check "the pair commit fences the branch head" \
+  'jq -e '\''.variables.input.expectedHeadOid == "3333333333333333333333333333333333333333" and .variables.input.branch.branchName == "bump-ksail-2.0.0"'\'' "$root/commit.json" >/dev/null'
+
+root="$(pair_fixture pair-resume "$pair")"
+status=0; run "$root" GH_BRANCH_EXISTS=1 GH_PRS='[{"state":"open","merged_at":null,"auto_merge":{"merge_method":"squash"}}]' || status=$?
+check "an existing single-cask branch is repaired with both files without a second PR" \
+  '[ "$status" = 0 ] && [ -f "$root/commit.json" ] && ! grep -q "git/refs\|pr create" "$root/calls" && jq -e '\''.variables.input.fileChanges.additions | length == 2'\'' "$root/commit.json" >/dev/null'
+check "a repaired pair disarms old auto-merge and requires normal review" \
+  'grep -q "disablePullRequestAutoMerge" "$root/calls" && ! grep -q "enablePullRequestAutoMerge" "$root/calls"'
+
+root="$(pair_fixture pair-failure "$pair")"
+status=0; run "$root" BREW_FAIL_CASK=ksail-desktop || status=$?
+check "a failed sibling generation publishes neither cask and preserves the checkout" \
+  '[ "$status" = 1 ] && ! grep -q "^gh api -X\|graphql\|pr create" "$root/calls" && git -C "$root/tap" diff --quiet'
+
+root="$(pair_fixture pair-cas "$pair")"
+status=0; run "$root" GH_COMMIT_EXIT=1 || status=$?
+check "a rejected atomic commit opens and arms no PR" \
+  '[ "$status" != 0 ] && ! grep -q "pr create\|enablePullRequestAutoMerge" "$root/calls"'
+
+root="$(pair_fixture pair-closed "$pair")"
+status=0; run "$root" GH_DESKTOP_PRS='[{"state":"closed","merged_at":null}]' || status=$?
+check "a deliberately closed sibling update is not republished through the pair" \
+  '[ "$status" = 0 ] && ! grep -q "bump-cask-pr\|pr create\|graphql" "$root/calls"'
+
+root="$(pair_fixture pair-unknown "$outdated")"
+status=0; run "$root" || status=$?
+check "unknown sibling release metadata cannot publish half a release" \
+  '[ "$status" = 1 ] && ! grep -q "bump-cask-pr\|pr create\|graphql" "$root/calls"'
+
+partial_pair='[{"cask":"ksail","version":{"current":"2.0.0","latest":"2.0.0","outdated":false}},{"cask":"ksail-desktop","version":{"current":"1.0.0","latest":"2.0.0","outdated":true}}]'
+root="$(pair_fixture pair-current-sibling "$partial_pair")"
+sed -i.bak 's/1.0.0/2.0.0/' "$root/tap/Casks/ksail.rb"
+rm -f "$root/tap/Casks/ksail.rb.bak"
+git -C "$root/tap" add Casks/ksail.rb
+git -C "$root/tap" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m already-current
+status=0; run "$root" || status=$?
+check "an already current sibling is included without asking Homebrew to bump it again" \
+  '[ "$status" = 0 ] && ! grep -q "bump-cask-pr.*tap/ksail$" "$root/calls" && jq -e '\''all(.variables.input.fileChanges.additions[]; (.contents | @base64d | contains("version \"2.0.0\"")))'\'' "$root/commit.json" >/dev/null'
+
+root="$(pair_fixture pair-dirty "$pair")"
+printf '# local work\n' >>"$root/tap/Casks/ksail.rb"
+status=0; run "$root" || status=$?
+check "local cask edits are preserved rather than reset by generation" \
+  '[ "$status" = 1 ] && grep -q "# local work" "$root/tap/Casks/ksail.rb" && ! grep -q "bump-cask-pr\|gh " "$root/calls"'
+
+root="$(pair_fixture pair-adapted "$pair")"
+status=0; run "$root" GH_BRANCH_EXISTS=1 GH_ADAPTED=1 || status=$?
+check "a remote cask adaptation is preserved rather than overwritten" \
+  '[ "$status" = 1 ] && [ ! -f "$root/commit.json" ] && ! grep -q "pr create\|enablePullRequestAutoMerge" "$root/calls"'
 
 exit "$fail"

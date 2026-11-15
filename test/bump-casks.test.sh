@@ -56,6 +56,7 @@ case "\$*" in
     fi ;;
   "api repos/o/r/git/ref/heads/"*) echo 3333333333333333333333333333333333333333 ;;
   "api repos/o/r/pulls?head=o:bump-ksail-desktop-"*"&state=all "*) echo "\${GH_DESKTOP_PRS:-[]}" ;;
+  "api repos/o/r/pulls?head=o:bump-ksail-pair-"*"&state=all "*) echo "\${GH_RECOVERY_PRS:-[]}" ;;
   "api repos/o/r/pulls?head=o:"*"&state=all "*) [ "\${GH_PRS_EXIT:-0}" = 0 ] || exit 1; echo "\${GH_PRS:-[]}" ;;
   "api repos/o/r/pulls?head=o:"*"&state=open "*) echo PR_kwNODE ;;
   "api graphql --input -"*)
@@ -207,6 +208,15 @@ git -C "$root/tap" -c user.name=t -c user.email=t@example.invalid -c commit.gpgs
 status=0; run "$root" || status=$?
 check "an already current sibling is included without asking Homebrew to bump it again" \
   '[ "$status" = 0 ] && ! grep -q "bump-cask-pr.*tap/ksail$" "$root/calls" && jq -e '\''all(.variables.input.fileChanges.additions[]; (.contents | @base64d | contains("version \"2.0.0\"")))'\'' "$root/commit.json" >/dev/null'
+
+root="$(pair_fixture pair-merged-legacy "$partial_pair")"
+sed -i.bak 's/1.0.0/2.0.0/' "$root/tap/Casks/ksail.rb"
+rm -f "$root/tap/Casks/ksail.rb.bak"
+git -C "$root/tap" add Casks/ksail.rb
+git -C "$root/tap" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m already-current
+status=0; run "$root" GH_PRS='[{"state":"closed","merged_at":"2026-11-01T00:00:00Z"}]' || status=$?
+check "a merged legacy CLI update does not suppress the missing desktop update" \
+  '[ "$status" = 0 ] && grep -q "pr create.*--head bump-ksail-pair-2.0.0" "$root/calls" && jq -e '\''.variables.input.branch.branchName == "bump-ksail-pair-2.0.0"'\'' "$root/commit.json" >/dev/null'
 
 root="$(pair_fixture pair-dirty "$pair")"
 printf '# local work\n' >>"$root/tap/Casks/ksail.rb"

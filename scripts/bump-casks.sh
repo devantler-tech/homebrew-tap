@@ -87,6 +87,18 @@ while IFS=$'\t' read -r cask version; do
     status=1
     continue
   fi
+  if [ "${#members[@]}" -gt 1 ] &&
+    jq -e 'length > 0 and all(.[]; .state == "closed" and .merged_at != null)' <<<"$prs" >/dev/null; then
+    # A merged legacy CLI-only PR is success, not a decision to reject the desktop.
+    # Recover on a new paired branch rather than reusing that closed PR's identity.
+    branch="bump-ksail-pair-$version"
+    head="${repo%%/*}:$branch"
+    if ! prs="$(gh api "repos/$repo/pulls?head=$head&state=all" --jq '[.[] | {state, merged_at, auto_merge}]')"; then
+      echo "::error::could not read the paired recovery update's disposition" >&2
+      status=1
+      continue
+    fi
+  fi
   if jq -e 'length > 0 and all(.[]; .state != "open")' <<<"$prs" >/dev/null; then
     echo "$cask $version: $branch already has a closed pull request, skipping"
     continue

@@ -1,8 +1,9 @@
 name: 🍺 Bump Casks
 
 # The tap is the only writer of Cask versions (#2568). Every hour, Homebrew's own livecheck finds
-# each Cask's latest GitHub release, and scripts/bump-casks.sh opens one pull request per outdated
-# Cask with `brew bump-cask-pr`. GitHub's latest release never points at a draft or a prerelease,
+# each Cask's latest GitHub release, and scripts/bump-casks.sh groups the KSail CLI and desktop
+# into one update, leaving other Casks independent. `brew bump-cask-pr` computes every checksum.
+# GitHub's latest release never points at a draft or a prerelease,
 # so a Cask cannot move to an unpublished release or an older tag.
 
 on:
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   bump:
-    name: Open a pull request for each outdated Cask
+    name: Open release-consistent Cask updates
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:

@@ -1,8 +1,8 @@
 cask "ksail-desktop" do
-  version "7.215.34"
+  version "7.215.35"
 
   on_macos do
-    sha256 "c9a1b256b5e1102ebb1b65d271d7a767844b6bfe9b9766f17943489d4c594aa8"
+    sha256 "8c9e84c85e57309a360c8c08be857cba2ed38b0fc80218c4a79f2579a12c8a7c"
 
     url "https://github.com/devantler-tech/ksail/releases/download/v#{version}/KSail_#{version}_darwin_arm64.zip"
 

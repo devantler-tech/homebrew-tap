@@ -2,10 +2,10 @@ cask "ksail" do
   arch arm: "arm64", intel: "amd64"
   os macos: "darwin", linux: "linux"
 
-  version "7.216.10"
-  sha256 arm:          "bf31dccc06416493de221b9e290422162753e00d21bfae19a3397f1f7f7aea32",
-         arm64_linux:  "cdedaa7be1cf43909fd9164f8cc699730dfd9cfe0d8961977217345bce97fbde",
-         x86_64_linux: "e1c5e3183422513c7308e77a62750739d6d6dbab2d259b965de79c38b993e0e0"
+  version "7.216.11"
+  sha256 arm:          "33374339355712ee73158ec41c856cc5c4db4c60e61075c61251e4029926c511",
+         arm64_linux:  "cb3c319180de830441f818aa115fad7728647b68051637e0f406b90048e387af",
+         x86_64_linux: "633f9079f8b29594ff8345601528d7deb1ac6288fd36bf1fa4498528fd95956f"
 
   on_macos do
     depends_on arch: :arm64

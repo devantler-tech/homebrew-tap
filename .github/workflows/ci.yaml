@@ -30,6 +30,7 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0 # the livecheck scope needs the base/head merge base
           persist-credentials: false # read-only job; never pushes
       - name: ⬆️ Update Homebrew
         # The image's bundled Homebrew can be weeks old and `macos-latest` rolls out gradually, so
@@ -79,7 +80,17 @@ jobs:
         # audit each Cask by `<tap>/<name>`. `--online` resolves url + sha256 and
         # the verified-domain rule; `--strict` turns style/quality warnings into
         # failures. Auditing every Cask means adding a third "just works".
+        #
+        # The livecheck version check ("Version X differs from Y retrieved by livecheck") runs only
+        # on the Casks the pull request or merge group adds or modifies. On any other Cask it says
+        # that Cask's product has a newer release, which is bump-casks.yaml's job to catch up on,
+        # not this change's defect. Checking it everywhere deadlocked the tap whenever two products
+        # released within one hourly bump: each bump PR failed on the other's still-old Cask, so
+        # neither could merge (#2652, #2653). Every other audit still runs on every Cask.
         env:
+          SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          SCOPE_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          SCOPE_MANIFEST: ${{ runner.temp }}/cask-audit-scope
           # `--online` hits the GitHub API to resolve release assets; without a
           # token brew uses the unauthenticated limit (60/hr per runner IP, shared
           # across all Actions runners on that IP) and intermittently fails with
@@ -94,11 +105,17 @@ jobs:
           # Homebrew refuses to load a Cask from an untrusted tap, which would fail every
           # audit before it looks at the Cask. Trust the tap, as load-casks does.
           brew trust --tap devantler-tech/tap
+          bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"
           status=0
           for cask in Casks/*.rb; do
             name="$(basename "$cask" .rb)"
+            except=()
+            if ! grep -qxF "$cask" "$SCOPE_MANIFEST"; then
+              except=(--except=livecheck_version)
+            fi
             echo "::group::brew audit $name"
-            brew audit --strict --online --cask "devantler-tech/tap/$name" || status=1
+            # Bash 3.2 (the macOS runner default) treats an empty array as unset under `set -u`.
+            brew audit --strict --online ${except[@]+"${except[@]}"} --cask "devantler-tech/tap/$name" || status=1
             echo "::endgroup::"
           done
           exit "$status"

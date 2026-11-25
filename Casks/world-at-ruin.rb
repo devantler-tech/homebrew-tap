@@ -1,6 +1,6 @@
 cask "world-at-ruin" do
-  version "0.172.4"
-  sha256 "18dc8f2a77b7bac93a714fa1c3bf22940f47948d9d8ac3d6b9860f3047ad549e"
+  version "0.172.5"
+  sha256 "b5d3b939f5450512a9d7ba12f59481ec33cc9464c634b8c890968e0c46749dd7"
 
   # No verified: parameter here. brew audit --strict rejects it when
   # the download domain matches the homepage domain, which it does

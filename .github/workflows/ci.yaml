@@ -86,7 +86,11 @@ jobs:
         # that Cask's product has a newer release, which is bump-casks.yaml's job to catch up on,
         # not this change's defect. Checking it everywhere deadlocked the tap whenever two products
         # released within one hourly bump: each bump PR failed on the other's still-old Cask, so
-        # neither could merge (#2652, #2653). Every other audit still runs on every Cask.
+        # neither could merge (#2652, #2653). `livecheck_https_availability` and
+        # `hosting_with_livecheck` are scoped the same way, because both can call the version
+        # check themselves and record its error despite the exception. Both judge only a Cask's
+        # own livecheck block, which cannot change unless the change touches that Cask. Every
+        # other audit still runs on every Cask.
         env:
           SCOPE_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           SCOPE_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
@@ -106,12 +110,13 @@ jobs:
           # audit before it looks at the Cask. Trust the tap, as load-casks does.
           brew trust --tap devantler-tech/tap
           bash scripts/changed-casks.sh "$SCOPE_BASE" "$SCOPE_HEAD" "$SCOPE_MANIFEST"
+          livecheck_audits="livecheck_version,livecheck_https_availability,hosting_with_livecheck"
           status=0
           for cask in Casks/*.rb; do
             name="$(basename "$cask" .rb)"
             except=()
             if ! grep -qxF "$cask" "$SCOPE_MANIFEST"; then
-              except=(--except=livecheck_version)
+              except=("--except=$livecheck_audits")
             fi
             echo "::group::brew audit $name"
             # Bash 3.2 (the macOS runner default) treats an empty array as unset under `set -u`.

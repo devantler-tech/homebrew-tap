@@ -1,0 +1,50 @@
+name: "OIDC probe (Dependabot)"
+# Temporary probe for devantler-tech/.github#1017: does a Dependabot-triggered pull_request run get an
+# OIDC token when its job grants id-token: write? The GitHub token broker migration
+# (devantler-tech/monorepo ADR 0020) needs that answer before the organization-required auto-merge
+# workflow moves to the broker. The job runs only for Dependabot. It requests a token for a
+# throwaway audience that no relying party accepts, masks it, and logs only whether one was issued
+# and its non-secret sub, job_workflow_ref and actor claims. Remove this file once #1017 is answered.
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  probe:
+    # Gated on the pull request's author; the logged actor claim shows whether Dependabot
+    # itself triggered the run, which is the restricted case this probe measures.
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      id-token: write
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Request an OIDC token for a throwaway audience
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "PROBE oidc=unavailable: this run has no OIDC request URL or token"
+            exit 0
+          fi
+          if ! response="$(curl -sS --fail --max-time 20 -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=devantler-tech-oidc-probe")"; then
+            echo "PROBE oidc=request-failed"
+            exit 0
+          fi
+          token="$(jq -r '.value // empty' <<<"${response}")"
+          if [[ -z "${token}" ]]; then
+            echo "PROBE oidc=empty"
+            exit 0
+          fi
+          echo "::add-mask::${token}"
+          payload="$(cut -d. -f2 <<<"${token}" | tr '_-' '/+')"
+          while (( ${#payload} % 4 )); do payload+="="; done
+          claims="$(base64 -d <<<"${payload}")"
+          echo "PROBE oidc=issued sub=$(jq -r '.sub' <<<"${claims}") job_workflow_ref=$(jq -r '.job_workflow_ref' <<<"${claims}") actor=$(jq -r '.actor' <<<"${claims}")"

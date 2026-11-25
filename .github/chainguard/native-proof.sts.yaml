@@ -1,7 +1,10 @@
 ---
-# Native refusal proof for devantler-tech/.github#1003. Never merged: this
-# policy does not pin its callers, so the required check must refuse it.
+# Native positive proof for devantler-tech/.github#1003. Never merged: this
+# policy pins its callers to the devantler-tech organization ID, so the
+# required check must accept it.
 issuer: https://token.actions.githubusercontent.com
 subject: repo:devantler-tech/homebrew-tap:ref:refs/heads/main
+claim_pattern:
+  repository_owner_id: "178524219"
 permissions:
   contents: read

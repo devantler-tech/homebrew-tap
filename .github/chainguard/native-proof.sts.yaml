@@ -1,0 +1,7 @@
+---
+# Native refusal proof for devantler-tech/.github#1003. Never merged: this
+# policy does not pin its callers, so the required check must refuse it.
+issuer: https://token.actions.githubusercontent.com
+subject: repo:devantler-tech/homebrew-tap:ref:refs/heads/main
+permissions:
+  contents: read
